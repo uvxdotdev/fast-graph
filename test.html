@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastGraph Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .test-case {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .loading {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>FastGraph Component Test</h1>
+        <div id="loading" class="loading">Loading FastGraph component...</div>
+        <div id="error" class="error" style="display: none;"></div>
+        
+        <div class="test-case">
+            <div class="examples">
+                <div class="example">
+                    <h3>Test 1: Red to Blue Gradient (Inactive - WebGPU in use)</h3>
+                    <div id="test1"></div>
+                </div>
+            
+                <div class="example">
+                    <h3>Test 2: Purple to Cyan Gradient (Inactive - WebGPU in use)</h3>
+                    <div id="test2"></div>
+                </div>
+            
+                <div class="example">
+                    <h3>Test 3: Orange to Pink (Inactive - WebGPU in use)</h3>
+                    <div id="test3"></div>
+                </div>
+            
+                <div class="example">
+                    <h3>Test 4: Green to Yellow (Inactive - WebGPU in use)</h3>
+                    <div id="test4"></div>
+                </div>
+            
+                <div class="example">
+                    <h3>Test 5: Multiple Components Demo</h3>
+                    <p style="color: #666; font-size: 14px; margin-bottom: 10px;">
+                        This demonstrates the WebGPU limitation - only the first component can be active.
+                    </p>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <div id="test5a"></div>
+                        <div id="test5b"></div>
+                        <div id="test5c"></div>
+                        <div id="test5d"></div>
+                    </div>
+                </div>
+            </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18",
+            "react-dom": "https://esm.sh/react-dom@18",
+            "react-dom/client": "https://esm.sh/react-dom@18/client",
+            "react/jsx-runtime": "https://esm.sh/react@18/jsx-runtime",
+            "react/jsx-dev-runtime": "https://esm.sh/react@18/jsx-dev-runtime"
+        }
+    }
+    </script>
+    
+    <script type="module">
+        import React from 'react';
+        import { createRoot } from 'react-dom/client';
+
+        async function loadAndTest() {
+            try {
+                document.getElementById('loading').textContent = 'Loading WASM module...';
+                
+                // Import the FastGraph component
+                const { FastGraph } = await import('./dist/index.esm.js');
+                
+                document.getElementById('loading').style.display = 'none';
+                
+                // Render test cases
+                renderTests(React, createRoot, FastGraph);
+                
+            } catch (error) {
+                console.error('Failed to load FastGraph:', error);
+                document.getElementById('loading').style.display = 'none';
+                const errorDiv = document.getElementById('error');
+                errorDiv.style.display = 'block';
+                errorDiv.innerHTML = `
+                    <strong>Error loading FastGraph:</strong> ${error.message}<br>
+                    <small>Make sure you have built the library with: <code>./build.sh</code></small>
+                `;
+            }
+        }
+
+        function renderTests(React, createRoot, FastGraph) {
+            try {
+                // Test 1: Basic red to blue
+                const root1 = createRoot(document.getElementById('test1'));
+                root1.render(React.createElement(FastGraph, {
+                    color1: '#ff0000',
+                    color2: '#0000ff',
+                    width: 400,
+                    height: 200
+                }));
+                
+                // Test 2: Purple to cyan
+                const root2 = createRoot(document.getElementById('test2'));
+                root2.render(React.createElement(FastGraph, {
+                    color1: '#8b00ff',
+                    color2: '#00ffff',
+                    width: 400,
+                    height: 200
+                }));
+                // Test 3: Small size
+                const root3 = createRoot(document.getElementById('test3'));
+                root3.render(React.createElement(FastGraph, {
+                    color1: '#ff8c00',
+                    color2: '#ff1493',
+                    width: 200,
+                    height: 100
+                }));
+                
+                // Test 4: Wide component
+                const root4 = createRoot(document.getElementById('test4'));
+                root4.render(React.createElement(FastGraph, {
+                    color1: '#32cd32',
+                    color2: '#ffff00',
+                    width: 600,
+                    height: 150
+                }));
+                
+                // Test 5: Multiple small components
+                const root5a = createRoot(document.getElementById('test5a'));
+                root5a.render(React.createElement(FastGraph, {
+                    color1: '#ff0000',
+                    color2: '#00ff00',
+                    width: 150,
+                    height: 80
+                }));
+                
+                const root5b = createRoot(document.getElementById('test5b'));
+                root5b.render(React.createElement(FastGraph, {
+                    color1: '#0000ff',
+                    color2: '#ffff00',
+                    width: 150,
+                    height: 80
+                }));
+                
+                const root5c = createRoot(document.getElementById('test5c'));
+                root5c.render(React.createElement(FastGraph, {
+                    color1: '#ff00ff',
+                    color2: '#00ffff',
+                    width: 150,
+                    height: 80
+                }));
+                
+                const root5d = createRoot(document.getElementById('test5d'));
+                root5d.render(React.createElement(FastGraph, {
+                    color1: '#ffa500',
+                    color2: '#800080',
+                    width: 150,
+                    height: 80
+                }));
+                
+                // All other components will show inactive state since only one can be active
+                
+                console.log('All tests rendered successfully!');
+                
+            } catch (error) {
+                console.error('Error rendering tests:', error);
+                const errorDiv = document.getElementById('error');
+                errorDiv.style.display = 'block';
+                errorDiv.innerHTML = `<strong>Render Error:</strong> ${error.message}`;
+            }
+        }
+        
+        loadAndTest();
+    </script>
+    
+
+</body>
+</html>

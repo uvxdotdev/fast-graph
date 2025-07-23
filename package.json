@@ -1,0 +1,64 @@
+{
+  "name": "fast-graph",
+  "version": "0.1.0",
+  "description": "High-performance graph rendering React component library powered by Rust, WASM, and WebGPU",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "rust-core/pkg"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.esm.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build:rust": "cd rust-core && wasm-pack build --target web --out-dir pkg",
+    "build:lib": "bun run build:rust && bun run build:ts",
+    "build:ts": "tsc && bun build src/index.ts --outdir dist --format esm --outfile index.esm.js && bun build src/index.ts --outdir dist --format cjs --outfile index.js",
+    "dev": "bun run build:rust && bun run build:ts --watch",
+    "test": "bun test",
+    "lint": "eslint src --ext .ts,.tsx",
+    "clean": "rm -rf dist rust-core/pkg",
+    "serve": "bunx serve . -p 3001"
+  },
+  "keywords": [
+    "react",
+    "graphs",
+    "webgpu",
+    "wasm",
+    "rust",
+    "canvas",
+    "visualization",
+    "performance"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.0.0",
+    "eslint": "^8.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/fast-graph.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/fast-graph/issues"
+  },
+  "homepage": "https://github.com/your-username/fast-graph#readme"
+}
