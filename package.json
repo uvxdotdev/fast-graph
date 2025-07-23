@@ -6,8 +6,19 @@
     "module": "dist/index.esm.js",
     "types": "dist/index.d.ts",
     "files": [
-        "dist",
-        "rust-core/pkg"
+      "dist/index.js",
+      "dist/index.esm.js", 
+      "dist/index.d.ts",
+      "dist/FastGraph.js",
+      "dist/FastGraph.d.ts",
+      "dist/FastGraph.d.ts.map",
+      "dist/index.d.ts.map",
+      "dist/pkg/fast_graph_core.js",
+      "dist/pkg/fast_graph_core_bg.wasm",
+      "dist/pkg/fast_graph_core.d.ts",
+      "dist/pkg/fast_graph_core_bg.wasm.d.ts",
+      "LICENSE",
+      "README.md"
     ],
     "exports": {
         ".": {

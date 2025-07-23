@@ -1,0 +1,15 @@
+{
+  "name": "fast-graph-core",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "fast_graph_core_bg.wasm",
+    "fast_graph_core.js",
+    "fast_graph_core.d.ts"
+  ],
+  "main": "fast_graph_core.js",
+  "types": "fast_graph_core.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
