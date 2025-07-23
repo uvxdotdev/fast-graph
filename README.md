@@ -157,6 +157,106 @@ function ResponsiveGradient() {
 }
 ```
 
+## ⚙️ Vite Configuration
+
+If you're using **Vite** as your build tool, you need special configuration to properly serve WASM files. Add the following to your `vite.config.ts`:
+
+```typescript
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    headers: {
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Opener-Policy': 'same-origin',
+    },
+    fs: {
+      allow: ['..', '.']
+    },
+    watch: {
+      ignored: ['!**/node_modules/@uvxdotdev/fastgraph/**']
+    }
+  },
+  optimizeDeps: {
+    exclude: ['@uvxdotdev/fastgraph'],
+    include: ['react', 'react-dom']
+  },
+  assetsInclude: ['**/*.wasm'],
+  define: {
+    global: 'globalThis',
+  },
+  worker: {
+    format: 'es'
+  }
+})
+```
+
+### 🔍 **Why These Settings Are Needed:**
+
+- **CORS Headers**: Required for WebGPU and WASM SharedArrayBuffer support
+- **File System Access**: Allows Vite to serve files from node_modules 
+- **Exclude from Optimization**: Prevents Vite from pre-bundling the WASM module
+- **WASM Assets**: Treats .wasm files as static assets with correct MIME types
+- **Global Definition**: Ensures compatibility with WASM-generated code
+
+### 🚨 **Alternative: Use Bun Serve**
+
+If you encounter issues with Vite, you can use Bun's built-in server which handles WASM perfectly:
+
+```bash
+# Instead of: npm run dev
+bunx serve . -p 3000
+```
+
+## 🛠️ Troubleshooting
+
+### Common Issues
+
+#### "WebGPU not supported" Error
+```bash
+# Enable WebGPU in your browser:
+# Chrome/Edge: chrome://flags/#enable-unsafe-webgpu
+# Firefox: about:config → dom.webgpu.enabled = true
+```
+
+#### WASM Loading Errors with Vite
+```bash
+# Error: "Failed to fetch dynamically imported module"
+# Solution: Use the Vite configuration above or switch to bun serve
+bunx serve . -p 3000
+```
+
+#### "Canvas element not found" Error
+```tsx
+// Make sure your canvas has proper dimensions
+<FastGraph 
+  width={800}    // Must be > 0
+  height={400}   // Must be > 0
+  color1="#ff0000"
+  color2="#0000ff"
+/>
+```
+
+#### Performance Issues
+```tsx
+// Limit the number of FastGraph components (only one active at a time)
+// Use smaller canvas dimensions for better performance
+<FastGraph width={400} height={200} />
+```
+
+#### Build Errors with TypeScript
+```json
+// Add to tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"]
+  }
+}
+```
+
 ## 🔧 Requirements
 
 ### Browser Support

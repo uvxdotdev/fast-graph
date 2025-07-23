@@ -25,8 +25,6 @@ var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require
 // src/FastGraph.tsx
 import React, { useRef, useEffect, useCallback, useState } from "react";
 var activeComponentId = null;
-var wasmModule = null;
-var wasmModulePromise = null;
 var registerComponent = (id) => {
   if (activeComponentId === null) {
     activeComponentId = id;
@@ -39,7 +37,9 @@ var unregisterComponent = (id) => {
     activeComponentId = null;
   }
 };
-var initWasmModule = async () => {
+var wasmModule = null;
+var wasmModulePromise = null;
+var loadWasmModule = async () => {
   if (wasmModule) {
     return wasmModule;
   }
@@ -48,13 +48,45 @@ var initWasmModule = async () => {
   }
   wasmModulePromise = (async () => {
     try {
-      const module = await import("./pkg/fast_graph_core.js");
+      let module;
+      try {
+        module = await import("./pkg/fast_graph_core.js");
+      } catch (relativeError) {
+        try {
+          module = await import("@uvxdotdev/fastgraph/dist/pkg/fast_graph_core.js");
+        } catch (packageError) {
+          try {
+            const currentScript = document.currentScript;
+            const baseUrl = currentScript?.src || window.location.href;
+            const wasmUrl = new URL("pkg/fast_graph_core.js", baseUrl).href;
+            module = await import(wasmUrl);
+          } catch (urlError) {
+            const possiblePaths = [
+              "/node_modules/@uvxdotdev/fastgraph/dist/pkg/fast_graph_core.js",
+              "./node_modules/@uvxdotdev/fastgraph/dist/pkg/fast_graph_core.js",
+              "../pkg/fast_graph_core.js"
+            ];
+            for (const path of possiblePaths) {
+              try {
+                module = await import(path);
+                break;
+              } catch (pathError) {
+                continue;
+              }
+            }
+            if (!module) {
+              throw new Error("All WASM import strategies failed");
+            }
+          }
+        }
+      }
       await module.default();
       wasmModule = module;
       return module;
     } catch (error) {
+      console.error("Failed to load WASM module:", error);
       wasmModulePromise = null;
-      throw error;
+      throw new Error(`Failed to load FastGraph WASM module: ${error instanceof Error ? error.message : String(error)}`);
     }
   })();
   return wasmModulePromise;
@@ -182,12 +214,12 @@ var FastGraph = ({
           throw new Error("Canvas has invalid dimensions after auto-sizing");
         }
         console.log("Loading WASM module...");
-        const module = await initWasmModule();
+        const wasmModule2 = await loadWasmModule();
         console.log("WASM module loaded");
         let renderer;
         try {
           console.log("Creating renderer...");
-          renderer = new module.FastGraphRenderer;
+          renderer = new wasmModule2.FastGraphRenderer;
           console.log("Renderer created");
         } catch (err) {
           throw new Error(`Failed to create renderer: ${err}`);
@@ -250,6 +282,7 @@ var FastGraph = ({
     };
   }, [canvas, handleResize]);
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
       mountedRef.current = false;
       if (animationIdRef.current) {

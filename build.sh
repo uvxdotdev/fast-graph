@@ -90,6 +90,8 @@ build_typescript() {
 copy_wasm() {
     print_status "Copying WASM files..."
     cp -r rust-core/pkg dist/
+    # Remove .gitignore from pkg directory to ensure WASM files are included in npm package
+    rm -f dist/pkg/.gitignore
     print_status "✅ WASM files copied"
 }
 

@@ -62,3 +62,7 @@ docs/
 *.tmp
 *.temp
 .cache/
+
+
+viber/
+test-app/

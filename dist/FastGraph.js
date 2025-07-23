@@ -1,8 +1,6 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 // Singleton WebGPU manager - only one component can be active
 let activeComponentId = null;
-let wasmModule = null;
-let wasmModulePromise = null;
 const registerComponent = (id) => {
     if (activeComponentId === null) {
         activeComponentId = id;
@@ -15,7 +13,9 @@ const unregisterComponent = (id) => {
         activeComponentId = null;
     }
 };
-const initWasmModule = async () => {
+let wasmModule = null;
+let wasmModulePromise = null;
+const loadWasmModule = async () => {
     if (wasmModule) {
         return wasmModule;
     }
@@ -24,15 +24,60 @@ const initWasmModule = async () => {
     }
     wasmModulePromise = (async () => {
         try {
-            // @ts-ignore - WASM module will be available at runtime
-            const module = await import('./pkg/fast_graph_core.js');
+            let module;
+            // Try multiple import strategies for different environments
+            try {
+                // Strategy 1: Direct relative import (development/local build)
+                // @ts-ignore - WASM module will be available at runtime
+                module = await import('./pkg/fast_graph_core.js');
+            }
+            catch (relativeError) {
+                try {
+                    // Strategy 2: Try resolving from the package root
+                    // @ts-ignore - Dynamic import for npm package
+                    module = await import('@uvxdotdev/fastgraph/dist/pkg/fast_graph_core.js');
+                }
+                catch (packageError) {
+                    try {
+                        // Strategy 3: Use current module URL as base for resolution
+                        const currentScript = document.currentScript;
+                        const baseUrl = currentScript?.src || window.location.href;
+                        const wasmUrl = new URL('pkg/fast_graph_core.js', baseUrl).href;
+                        // @ts-ignore - Dynamic URL-based import
+                        module = await import(wasmUrl);
+                    }
+                    catch (urlError) {
+                        // Strategy 4: Try common CDN/package paths
+                        const possiblePaths = [
+                            '/node_modules/@uvxdotdev/fastgraph/dist/pkg/fast_graph_core.js',
+                            './node_modules/@uvxdotdev/fastgraph/dist/pkg/fast_graph_core.js',
+                            '../pkg/fast_graph_core.js'
+                        ];
+                        for (const path of possiblePaths) {
+                            try {
+                                // @ts-ignore - Dynamic path import
+                                module = await import(path);
+                                break;
+                            }
+                            catch (pathError) {
+                                continue;
+                            }
+                        }
+                        if (!module) {
+                            throw new Error('All WASM import strategies failed');
+                        }
+                    }
+                }
+            }
+            // Initialize the WASM module
             await module.default();
             wasmModule = module;
             return module;
         }
         catch (error) {
-            wasmModulePromise = null;
-            throw error;
+            console.error('Failed to load WASM module:', error);
+            wasmModulePromise = null; // Reset promise to allow retry
+            throw new Error(`Failed to load FastGraph WASM module: ${error instanceof Error ? error.message : String(error)}`);
         }
     })();
     return wasmModulePromise;
@@ -169,12 +214,12 @@ export const FastGraph = ({ color1 = '#ff0000', color2 = '#0000ff', width = 800,
                 }
                 // Get shared WASM module instance
                 console.log('Loading WASM module...');
-                const module = await initWasmModule();
+                const wasmModule = await loadWasmModule();
                 console.log('WASM module loaded');
                 let renderer;
                 try {
                     console.log('Creating renderer...');
-                    renderer = new module.FastGraphRenderer();
+                    renderer = new wasmModule.FastGraphRenderer();
                     console.log('Renderer created');
                 }
                 catch (err) {
@@ -245,8 +290,9 @@ export const FastGraph = ({ color1 = '#ff0000', color2 = '#0000ff', width = 800,
             resizeObserver.disconnect();
         };
     }, [canvas, handleResize]);
-    // Cleanup on unmount
+    // Mount/unmount management
     useEffect(() => {
+        mountedRef.current = true;
         return () => {
             mountedRef.current = false;
             if (animationIdRef.current) {

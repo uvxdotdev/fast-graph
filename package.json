@@ -1,31 +1,34 @@
 {
     "name": "@uvxdotdev/fastgraph",
-    "version": "0.1.0",
+    "version": "0.1.6",
     "description": "High-performance graph rendering React component library powered by Rust, WASM, and WebGPU",
     "main": "dist/index.js",
     "module": "dist/index.esm.js",
     "types": "dist/index.d.ts",
     "files": [
-      "dist/index.js",
-      "dist/index.esm.js", 
-      "dist/index.d.ts",
-      "dist/FastGraph.js",
-      "dist/FastGraph.d.ts",
-      "dist/FastGraph.d.ts.map",
-      "dist/index.d.ts.map",
-      "dist/pkg/fast_graph_core.js",
-      "dist/pkg/fast_graph_core_bg.wasm",
-      "dist/pkg/fast_graph_core.d.ts",
-      "dist/pkg/fast_graph_core_bg.wasm.d.ts",
-      "LICENSE",
-      "README.md"
+        "dist/index.js",
+        "dist/index.esm.js",
+        "dist/index.d.ts",
+        "dist/FastGraph.js",
+        "dist/FastGraph.d.ts",
+        "dist/FastGraph.d.ts.map",
+        "dist/index.d.ts.map",
+        "dist/pkg/fast_graph_core.js",
+        "dist/pkg/fast_graph_core_bg.wasm",
+        "dist/pkg/fast_graph_core.d.ts",
+        "dist/pkg/fast_graph_core_bg.wasm.d.ts",
+        "LICENSE",
+        "README.md"
     ],
     "exports": {
         ".": {
             "import": "./dist/index.esm.js",
             "require": "./dist/index.js",
             "types": "./dist/index.d.ts"
-        }
+        },
+        "./dist/pkg/*": "./dist/pkg/*",
+        "./dist/pkg/fast_graph_core.js": "./dist/pkg/fast_graph_core.js",
+        "./dist/pkg/fast_graph_core_bg.wasm": "./dist/pkg/fast_graph_core_bg.wasm"
     },
     "scripts": {
         "build:rust": "cd rust-core && wasm-pack build --target web --out-dir pkg",
@@ -65,11 +68,11 @@
         "react-dom": "^18.2.0"
     },
     "repository": {
-      "type": "git",
-      "url": "https://github.com/uvxdotdev/fastgraph.git"
+        "type": "git",
+        "url": "https://github.com/uvxdotdev/fastgraph.git"
     },
     "bugs": {
-      "url": "https://github.com/uvxdotdev/fastgraph/issues"
+        "url": "https://github.com/uvxdotdev/fastgraph/issues"
     },
     "homepage": "https://github.com/uvxdotdev/fastgraph#readme"
 }
