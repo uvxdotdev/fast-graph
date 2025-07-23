@@ -1,26 +1,35 @@
-# FastGraph
+# 🚀 FastGraph
 
-High-performance graph rendering React component library powered by Rust, WASM, and WebGPU.
+High-performance React component library for rendering animated gradients and graphics, powered by **Rust**, **WebAssembly**, and **WebGPU**.
 
-## Features
+[![npm version](https://badge.fury.io/js/fast-graph.svg)](https://badge.fury.io/js/fast-graph)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-- 🚀 **High Performance**: Rust + WebAssembly + WebGPU for maximum speed
-- ⚛️ **React Ready**: Drop-in React components with TypeScript support
-- 🎨 **Customizable**: Easy color theming and styling
-- 📱 **Responsive**: Automatic canvas sizing and device pixel ratio handling
-- 🌐 **Modern**: Uses latest web technologies for optimal performance
+## ✨ Features
 
-## Installation
+- 🔥 **Hardware Accelerated**: Powered by WebGPU for maximum performance
+- ⚡ **Lightning Fast**: Core rendering engine written in Rust + WASM
+- 🎨 **Beautiful Gradients**: Smooth, animated color transitions
+- 📱 **Responsive**: Automatic canvas sizing with device pixel ratio support
+- 🔧 **TypeScript**: Full type safety out of the box
+- 🪶 **Lightweight**: Minimal bundle size with zero dependencies
+- 🎯 **React Ready**: Drop-in component for any React project
+
+## 📦 Installation
 
 ```bash
 npm install fast-graph
-# or
+```
+
+Or with other package managers:
+
+```bash
 yarn add fast-graph
-# or
+pnpm add fast-graph
 bun add fast-graph
 ```
 
-## Quick Start
+## 🎯 Quick Start
 
 ```tsx
 import React from 'react';
@@ -29,7 +38,6 @@ import { FastGraph } from 'fast-graph';
 function App() {
   return (
     <div>
-      <h1>My Visualization</h1>
       <FastGraph 
         color1="#ff0000" 
         color2="#0000ff" 
@@ -43,170 +51,211 @@ function App() {
 export default App;
 ```
 
-## API Reference
+## 📖 API Reference
 
 ### FastGraph Component
-
-The main component for rendering animated gradients.
 
 #### Props
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `color1` | `string` | `"#ff0000"` | First gradient color (hex format) |
-| `color2` | `string` | `"#0000ff"` | Second gradient color (hex format) |
-| `width` | `number` | `800` | Canvas width in pixels |
-| `height` | `number` | `600` | Canvas height in pixels |
-| `className` | `string` | `undefined` | CSS class name |
-| `style` | `React.CSSProperties` | `undefined` | Inline styles |
+| `color1` | `string` | `#ff0000` | First gradient color (hex format) |
+| `color2` | `string` | `#0000ff` | Second gradient color (hex format) |
+| `width` | `number` | `600` | Canvas width in pixels |
+| `height` | `number` | `300` | Canvas height in pixels |
+| `className` | `string` | `undefined` | CSS class name for the container |
+| `style` | `CSSProperties` | `undefined` | Inline styles for the container |
 
-#### Example Usage
+#### Example with All Props
 
 ```tsx
+<FastGraph 
+  color1="#ff6b6b"
+  color2="#4ecdc4"
+  width={1200}
+  height={600}
+  className="my-gradient"
+  style={{ borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+/>
+```
+
+## 🎨 Usage Examples
+
+### Interactive Color Picker
+
+```tsx
+import React, { useState } from 'react';
 import { FastGraph } from 'fast-graph';
 
-// Basic usage
-<FastGraph color1="#ff0000" color2="#0000ff" />
+function InteractiveDemo() {
+  const [color1, setColor1] = useState('#ff0000');
+  const [color2, setColor2] = useState('#0000ff');
 
-// Custom dimensions
-<FastGraph 
-  color1="#8b00ff" 
-  color2="#00ffff" 
-  width={1200} 
-  height={600} 
-/>
-
-// With styling
-<FastGraph 
-  color1="#ff8c00" 
-  color2="#ff1493" 
-  className="my-graph"
-  style={{ borderRadius: '8px' }}
-/>
+  return (
+    <div>
+      <div style={{ marginBottom: '20px' }}>
+        <label>
+          Color 1: 
+          <input 
+            type="color" 
+            value={color1} 
+            onChange={(e) => setColor1(e.target.value)} 
+          />
+        </label>
+        <label>
+          Color 2: 
+          <input 
+            type="color" 
+            value={color2} 
+            onChange={(e) => setColor2(e.target.value)} 
+          />
+        </label>
+      </div>
+      
+      <FastGraph 
+        color1={color1}
+        color2={color2}
+        width={800}
+        height={400}
+      />
+    </div>
+  );
+}
 ```
 
-### Supported Color Formats
+### Responsive Design
 
-- **Hex**: `#ff0000`, `#f00`, `#ff0000ff`
-- **CSS Color Names**: Support planned for future versions
+```tsx
+import React, { useEffect, useState } from 'react';
+import { FastGraph } from 'fast-graph';
 
-## Browser Support
+function ResponsiveGradient() {
+  const [dimensions, setDimensions] = useState({ width: 800, height: 400 });
 
-FastGraph requires browsers with WebGPU support:
+  useEffect(() => {
+    const updateDimensions = () => {
+      setDimensions({
+        width: Math.min(window.innerWidth - 40, 1200),
+        height: Math.min(window.innerHeight * 0.6, 600)
+      });
+    };
 
-- **Chrome/Chromium**: 113+ (with WebGPU enabled)
-- **Firefox**: Experimental support (flag required)
-- **Safari**: Technical Preview
-- **Edge**: 113+ (with WebGPU enabled)
+    window.addEventListener('resize', updateDimensions);
+    updateDimensions();
 
-For browsers without WebGPU support, the component will display an error message.
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, []);
 
-## Development
+  return (
+    <FastGraph 
+      color1="#667eea"
+      color2="#764ba2"
+      width={dimensions.width}
+      height={dimensions.height}
+    />
+  );
+}
+```
 
-### Prerequisites
+## 🔧 Requirements
 
-- [Rust](https://rustup.rs/) (latest stable)
-- [wasm-pack](https://rustwasm.github.io/wasm-pack/)
-- [Bun](https://bun.sh/) (preferred) or Node.js 16+
+### Browser Support
 
-### Setup
+FastGraph requires browsers with **WebGPU support**:
 
-1. Clone the repository:
+- ✅ Chrome 113+ (stable)
+- ✅ Edge 113+ (stable) 
+- ✅ Firefox 121+ (behind flag)
+- ✅ Safari 18+ (preview)
+
+### Fallback Handling
+
+```tsx
+function App() {
+  const [webGPUSupported, setWebGPUSupported] = useState(false);
+
+  useEffect(() => {
+    setWebGPUSupported('gpu' in navigator);
+  }, []);
+
+  if (!webGPUSupported) {
+    return (
+      <div style={{ padding: '20px', textAlign: 'center' }}>
+        <h3>WebGPU Not Supported</h3>
+        <p>This browser doesn't support WebGPU. Please use Chrome 113+ or Edge 113+.</p>
+      </div>
+    );
+  }
+
+  return <FastGraph color1="#ff0000" color2="#0000ff" />;
+}
+```
+
+## 🏗️ Development
+
+### Building from Source
+
 ```bash
+# Clone the repository
 git clone https://github.com/your-username/fast-graph.git
 cd fast-graph
-```
-
-2. Install dependencies:
-```bash
-bun install
-```
-
-3. Build the project:
-```bash
-./build.sh
-```
-
-### Development Commands
-
-```bash
-# Full build
-./build.sh
-
-# Clean build artifacts
-./build.sh clean
-
-# Build only Rust WASM
-./build.sh rust
-
-# Build only TypeScript
-./build.sh ts
-
-# Quick development build
-./build.sh dev
 
 # Install dependencies
 bun install
 
-# Run tests
-bun test
+# Build the library
+./build.sh
+
+# Test the component
+bun run serve
 ```
 
 ### Project Structure
 
 ```
 fast-graph/
-├── src/                   # React components (TypeScript)
-│   ├── FastGraph.tsx     # Main component
-│   └── index.ts          # Export declarations
-├── rust-core/            # Rust WebGPU core
-│   ├── src/
-│   │   ├── lib.rs        # WASM bindings
-│   │   ├── renderer.rs   # WebGPU renderer
-│   │   └── shaders/      # WebGPU shaders
-│   └── Cargo.toml
-├── example/              # Usage examples
-├── dist/                 # Built library
-└── build.sh             # Build script
+├── src/                    # TypeScript React components
+│   ├── FastGraph.tsx      # Main component
+│   └── index.ts           # Public exports
+├── rust-core/             # Rust + WASM core
+│   ├── src/               # Rust source code
+│   ├── shaders/           # WebGPU shaders
+│   └── Cargo.toml         # Rust dependencies
+├── dist/                  # Built library
+└── sample-app/            # Example React app
 ```
 
-### Testing the Examples
+## 🎯 Roadmap
 
-After building, open `example/index.html` in a browser that supports WebGPU to see the component in action.
+- [ ] 📊 Graph plotting components (line, bar, scatter)
+- [ ] 🎛️ Interactive controls and zoom
+- [ ] 🎨 More gradient patterns and effects
+- [ ] 📱 React Native support
+- [ ] 🔄 Animation timeline controls
+- [ ] 🎪 3D visualizations
 
-## Architecture
+## 🤝 Contributing
 
-FastGraph uses a multi-layer architecture:
-
-1. **React Layer**: TypeScript React components with hooks for lifecycle management
-2. **WASM Bindings**: Rust-generated WebAssembly for performance-critical operations
-3. **WebGPU Core**: Rust-based renderer using WebGPU for hardware acceleration
-4. **Shader Layer**: WGSL shaders for GPU-based rendering effects
-
-## Roadmap
-
-- [ ] Multiple graph types (line, bar, scatter)
-- [ ] Data binding and real-time updates
-- [ ] More color format support
-- [ ] Animation controls
-- [ ] Touch/mouse interaction
-- [ ] WebGL fallback for older browsers
-- [ ] Performance profiling tools
-
-## Contributing
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
 1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Commit changes: `git commit -am 'Add my feature'`
-4. Push to branch: `git push origin feature/my-feature`
-5. Submit a Pull Request
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## License
+## 📄 License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgments
+## 🙏 Acknowledgments
 
-- Built with [wgpu-rs](https://github.com/gfx-rs/wgpu) for WebGPU bindings
-- Inspired by high-performance visualization libraries
-- Thanks to the Rust and WebAssembly communities
+- Built with [wgpu](https://wgpu.rs/) for WebGPU bindings
+- Powered by [wasm-pack](https://github.com/rustwasm/wasm-pack) for Rust/WASM integration
+- Inspired by modern graphics programming techniques
+
+---
+
+**Made with ❤️ and ⚡ by the FastGraph team**
+
+For questions, issues, or feature requests, please visit our [GitHub repository](https://github.com/your-username/fast-graph).

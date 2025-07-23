@@ -1,0 +1,64 @@
+# Source files (we publish built dist/ instead)
+src/
+rust-core/src/
+rust-core/target/
+rust-core/Cargo.lock
+
+# Example and sample apps
+sample-app/
+example/
+test.html
+single-test.html
+
+# Development files
+build.sh
+*.sh
+.git/
+.gitignore
+tsconfig.json
+vite.config.ts
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Node modules
+node_modules/
+
+# Test files
+**/*.test.*
+**/*.spec.*
+coverage/
+.nyc_output/
+
+# Build artifacts we don't need
+*.tsbuildinfo
+
+# CI/CD files
+.github/
+.gitlab-ci.yml
+.travis.yml
+circle.yml
+
+# Documentation source (keep built README.md)
+docs/
+*.md.backup
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
