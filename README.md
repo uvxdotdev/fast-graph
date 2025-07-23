@@ -2,7 +2,7 @@
 
 High-performance React component library for rendering animated gradients and graphics, powered by **Rust**, **WebAssembly**, and **WebGPU**.
 
-[![npm version](https://badge.fury.io/js/fast-graph.svg)](https://badge.fury.io/js/fast-graph)
+[![npm version](https://badge.fury.io/js/@uvxdotdev%2Ffastgraph.svg)](https://badge.fury.io/js/@uvxdotdev%2Ffastgraph)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## ✨ Features
@@ -18,22 +18,22 @@ High-performance React component library for rendering animated gradients and gr
 ## 📦 Installation
 
 ```bash
-npm install fast-graph
+npm install @uvxdotdev/fastgraph
 ```
 
 Or with other package managers:
 
 ```bash
-yarn add fast-graph
-pnpm add fast-graph
-bun add fast-graph
+yarn add @uvxdotdev/fastgraph
+pnpm add @uvxdotdev/fastgraph
+bun add @uvxdotdev/fastgraph
 ```
 
 ## 🎯 Quick Start
 
 ```tsx
 import React from 'react';
-import { FastGraph } from 'fast-graph';
+import { FastGraph } from '@uvxdotdev/fastgraph';
 
 function App() {
   return (
@@ -85,7 +85,7 @@ export default App;
 
 ```tsx
 import React, { useState } from 'react';
-import { FastGraph } from 'fast-graph';
+import { FastGraph } from '@uvxdotdev/fastgraph';
 
 function InteractiveDemo() {
   const [color1, setColor1] = useState('#ff0000');
@@ -127,7 +127,7 @@ function InteractiveDemo() {
 
 ```tsx
 import React, { useEffect, useState } from 'react';
-import { FastGraph } from 'fast-graph';
+import { FastGraph } from '@uvxdotdev/fastgraph';
 
 function ResponsiveGradient() {
   const [dimensions, setDimensions] = useState({ width: 800, height: 400 });
@@ -197,8 +197,8 @@ function App() {
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/fast-graph.git
-cd fast-graph
+git clone https://github.com/uvxdotdev/fastgraph.git
+cd fastgraph
 
 # Install dependencies
 bun install
@@ -213,7 +213,7 @@ bun run serve
 ### Project Structure
 
 ```
-fast-graph/
+@uvxdotdev/fastgraph/
 ├── src/                    # TypeScript React components
 │   ├── FastGraph.tsx      # Main component
 │   └── index.ts           # Public exports
@@ -258,4 +258,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Made with ❤️ and ⚡ by the FastGraph team**
 
-For questions, issues, or feature requests, please visit our [GitHub repository](https://github.com/your-username/fast-graph).
+For questions, issues, or feature requests, please visit our [GitHub repository](https://github.com/uvxdotdev/fastgraph).

@@ -134,7 +134,7 @@ npm pack --dry-run | head -20
 # Final confirmation
 echo ""
 echo -e "${YELLOW}🚨 READY TO PUBLISH${NC}"
-echo "  📦 Package: fast-graph"
+echo "  📦 Package: @uvxdotdev/fastgraph"
 echo "  🏷️  Version: $NEW_VERSION" 
 echo "  👤 Author: $(npm whoami)"
 echo "  🌐 Registry: $(npm config get registry)"
@@ -157,7 +157,7 @@ fi
 echo -e "${BLUE}🚀 Publishing to npm...${NC}"
 
 if npm publish; then
-    echo -e "${GREEN}✅ Successfully published fast-graph@$NEW_VERSION to npm!${NC}"
+    echo -e "${GREEN}✅ Successfully published @uvxdotdev/fastgraph@$NEW_VERSION to npm!${NC}"
     
     # Commit version change and create git tag
     if [ "$VERSION_TYPE" != "skip" ]; then
@@ -180,11 +180,11 @@ if npm publish; then
     echo -e "${GREEN}🎉 PUBLICATION SUCCESSFUL!${NC}"
     echo ""
     echo "📦 Your package is now available:"
-    echo "   npm install fast-graph@$NEW_VERSION"
-    echo "   yarn add fast-graph@$NEW_VERSION"
-    echo "   bun add fast-graph@$NEW_VERSION"
+    echo "   npm install @uvxdotdev/fastgraph@$NEW_VERSION"
+    echo "   yarn add @uvxdotdev/fastgraph@$NEW_VERSION"
+    echo "   bun add @uvxdotdev/fastgraph@$NEW_VERSION"
     echo ""
-    echo "🔗 View on npm: https://www.npmjs.com/package/fast-graph"
+    echo "🔗 View on npm: https://www.npmjs.com/package/@uvxdotdev/fastgraph"
     echo ""
     
 else
