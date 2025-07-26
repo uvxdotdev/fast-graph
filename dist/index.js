@@ -379,6 +379,7 @@ var FastGraph = ({
   style
 }) => {
   const [canvas, setCanvas] = import_react.useState(null);
+  const containerRef = import_react.useRef(null);
   const rendererRef = import_react.useRef(null);
   const animationIdRef = import_react.useRef(null);
   const startTimeRef = import_react.useRef(null);
@@ -394,6 +395,7 @@ var FastGraph = ({
   const componentId = import_react.useRef(`fast-graph-${Math.random().toString(36).substr(2, 9)}-${Date.now()}`);
   const initialColorsRef = import_react.useRef({ color1, color2 });
   const mountedRef = import_react.useRef(true);
+  const lastSizeRef = import_react.useRef({ width: 0, height: 0 });
   console.log("FastGraph render:", { isActive, isInitialized, isInitializing, error, canvas: !!canvas, nodeCount: nodes.length, edgeCount: edges.length, camera: cameraRef.current });
   const canvasRef = import_react.useCallback((canvasElement) => {
     console.log("Canvas ref callback:", !!canvasElement);
@@ -586,16 +588,21 @@ var FastGraph = ({
     }
   }, [isInitialized, error]);
   const handleResize = import_react.useCallback(() => {
-    if (!canvas || !rendererRef.current || !isInitialized)
+    if (!canvas || !containerRef.current || !rendererRef.current || !isInitialized)
       return;
-    const rect = canvas.getBoundingClientRect();
-    const pixelRatio = window.devicePixelRatio || 1;
+    const rect = containerRef.current.getBoundingClientRect();
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
     const maxDimension = 2048;
-    const targetWidth = Math.min(Math.floor(rect.width * pixelRatio), maxDimension);
-    const targetHeight = Math.min(Math.floor(rect.height * pixelRatio), maxDimension);
-    if (canvas.width === targetWidth && canvas.height === targetHeight) {
+    const minDimension = 100;
+    const containerWidth = Math.max(rect.width, minDimension);
+    const containerHeight = Math.max(rect.height, minDimension);
+    const targetWidth = Math.min(Math.floor(containerWidth * pixelRatio), maxDimension);
+    const targetHeight = Math.min(Math.floor(containerHeight * pixelRatio), maxDimension);
+    const lastSize = lastSizeRef.current;
+    if (lastSize.width === targetWidth && lastSize.height === targetHeight) {
       return;
     }
+    lastSizeRef.current = { width: targetWidth, height: targetHeight };
     canvas.width = targetWidth;
     canvas.height = targetHeight;
     try {
@@ -713,20 +720,31 @@ var FastGraph = ({
     handleResize();
   }, [width, height, handleResize]);
   import_react.useEffect(() => {
-    if (!canvas)
+    if (!containerRef.current)
       return;
     let resizeTimeout;
     const debouncedResize = () => {
       clearTimeout(resizeTimeout);
       resizeTimeout = setTimeout(handleResize, 100);
     };
-    const resizeObserver = new ResizeObserver(debouncedResize);
-    resizeObserver.observe(canvas);
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width: width2, height: height2 } = entry.contentRect;
+        const lastSize = lastSizeRef.current;
+        const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+        const targetWidth = Math.min(Math.floor(width2 * pixelRatio), 2048);
+        const targetHeight = Math.min(Math.floor(height2 * pixelRatio), 2048);
+        if (lastSize.width !== targetWidth || lastSize.height !== targetHeight) {
+          debouncedResize();
+        }
+      }
+    });
+    resizeObserver.observe(containerRef.current);
     return () => {
       clearTimeout(resizeTimeout);
       resizeObserver.disconnect();
     };
-  }, [canvas, handleResize]);
+  }, [handleResize]);
   import_react.useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -750,14 +768,22 @@ var FastGraph = ({
     width,
     height,
     position: "relative",
+    minWidth: "100px",
+    minHeight: "100px",
+    maxWidth: "2048px",
+    maxHeight: "2048px",
+    overflow: "hidden",
     ...style
   };
   const canvasStyle = {
     width: "100%",
     height: "100%",
-    display: "block"
+    display: "block",
+    maxWidth: "100%",
+    maxHeight: "100%"
   };
   return /* @__PURE__ */ import_react.default.createElement("div", {
+    ref: containerRef,
     style: containerStyle
   }, /* @__PURE__ */ import_react.default.createElement("canvas", {
     ref: canvasRef,

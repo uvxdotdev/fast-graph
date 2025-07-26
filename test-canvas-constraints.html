@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastGraph Canvas Constraints Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        
+        h1 {
+            margin-bottom: 30px;
+        }
+        
+        .test-section {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .status {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-family: monospace;
+            font-size: 12px;
+            text-align: left;
+            white-space: pre-wrap;
+        }
+        
+        #fastgraph-container {
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 10px;
+            display: inline-block;
+        }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "react": "https://esm.sh/react@18",
+                "react-dom": "https://esm.sh/react-dom@18",
+                "react-dom/client": "https://esm.sh/react-dom@18/client",
+                "react/jsx-runtime": "https://esm.sh/react@18/jsx-runtime",
+                "react/jsx-dev-runtime": "https://esm.sh/react@18/jsx-dev-runtime"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 FastGraph Canvas Constraints Test</h1>
+        
+        <div class="test-section">
+            <h2>📊 Canvas Size Monitoring</h2>
+            <div id="status" class="status">Initializing test...</div>
+            <div id="fastgraph-container"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import React, { useState, useEffect } from "react";
+        import { createRoot } from "react-dom/client";
+
+        async function loadAndTest() {
+            const statusDiv = document.getElementById("status");
+            const container = document.getElementById("fastgraph-container");
+
+            try {
+                statusDiv.textContent = "Loading FastGraph component...";
+
+                const { FastGraph, generateRandomGraph } = await import("./dist/index.esm.js");
+
+                function CanvasTest() {
+                    const [status, setStatus] = useState('Initializing...');
+                    const [graph] = useState(() => generateRandomGraph(100, 0.05));
+
+                    useEffect(() => {
+                        let monitoring = true;
+                        let resizeCount = 0;
+                        let maxWidth = 0;
+                        let maxHeight = 0;
+
+                        const monitorCanvas = () => {
+                            if (!monitoring) return;
+
+                            const canvas = document.querySelector('canvas');
+                            if (canvas) {
+                                const rect = canvas.getBoundingClientRect();
+                                
+                                maxWidth = Math.max(maxWidth, canvas.width);
+                                maxHeight = Math.max(maxHeight, canvas.height);
+
+                                let statusText = `Canvas Monitoring Results:\n\n`;
+                                statusText += `Current Dimensions:\n`;
+                                statusText += `  Canvas: ${canvas.width} x ${canvas.height}px\n`;
+                                statusText += `  CSS: ${rect.width.toFixed(1)} x ${rect.height.toFixed(1)}px\n`;
+                                statusText += `  Device Pixel Ratio: ${window.devicePixelRatio}\n\n`;
+                                
+                                statusText += `Maximum Size Reached:\n`;
+                                statusText += `  ${maxWidth} x ${maxHeight}px\n\n`;
+                                
+                                statusText += `Constraint Tests:\n`;
+                                
+                                if (maxWidth <= 2048 && maxHeight <= 2048) {
+                                    statusText += `  ✅ Size within WebGPU limits (≤2048px)\n`;
+                                } else {
+                                    statusText += `  ❌ Size exceeds WebGPU limits (>2048px)\n`;
+                                }
+                                
+                                if (canvas.width >= 100 && canvas.height >= 100) {
+                                    statusText += `  ✅ Size above minimum (≥100px)\n`;
+                                } else {
+                                    statusText += `  ❌ Size below minimum (<100px)\n`;
+                                }
+                                
+                                if (rect.width > 0 && rect.height > 0) {
+                                    statusText += `  ✅ Valid CSS dimensions\n`;
+                                } else {
+                                    statusText += `  ❌ Invalid CSS dimensions\n`;
+                                }
+
+                                statusText += `\nResize Events: ${resizeCount}\n`;
+                                
+                                if (resizeCount > 100) {
+                                    statusText += `  ⚠️ Excessive resize events detected!\n`;
+                                } else {
+                                    statusText += `  ✅ Resize count reasonable\n`;
+                                }
+
+                                setStatus(statusText);
+                            }
+
+                            setTimeout(monitorCanvas, 200);
+                        };
+
+                        setTimeout(monitorCanvas, 1000);
+
+                        return () => {
+                            monitoring = false;
+                        };
+                    }, []);
+
+                    return React.createElement('div', null,
+                        React.createElement('div', { 
+                            style: { 
+                                fontSize: '12px', 
+                                marginBottom: '15px',
+                                padding: '10px',
+                                background: 'rgba(0,0,0,0.2)',
+                                borderRadius: '5px'
+                            }
+                        }, status),
+                        React.createElement(FastGraph, {
+                            nodes: graph.nodes,
+                            edges: graph.edges,
+                            width: 800,
+                            height: 600,
+                            style: {
+                                border: '2px solid rgba(255,255,255,0.5)',
+                                borderRadius: '10px',
+                                background: '#000'
+                            }
+                        })
+                    );
+                }
+
+                const root = createRoot(container);
+                root.render(React.createElement(CanvasTest));
+
+                statusDiv.textContent = "✅ Test loaded successfully! Monitoring canvas...";
+
+            } catch (error) {
+                statusDiv.textContent = `❌ Error loading test: ${error.message}`;
+                console.error('Test error:', error);
+            }
+        }
+
+        loadAndTest();
+    </script>
+</body>
+</html>

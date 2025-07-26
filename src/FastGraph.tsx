@@ -135,6 +135,7 @@ export const FastGraph: React.FC<FastGraphProps> = ({
   style,
 }) => {
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef<any>(null);
   const animationIdRef = useRef<number | null>(null);
   const startTimeRef = useRef<number | null>(null);
@@ -153,6 +154,7 @@ export const FastGraph: React.FC<FastGraphProps> = ({
   const componentId = useRef(`fast-graph-${Math.random().toString(36).substr(2, 9)}-${Date.now()}`);
   const initialColorsRef = useRef({ color1, color2 });
   const mountedRef = useRef(true);
+  const lastSizeRef = useRef({ width: 0, height: 0 });
 
   console.log('FastGraph render:', { isActive, isInitialized, isInitializing, error, canvas: !!canvas, nodeCount: nodes.length, edgeCount: edges.length, camera: cameraRef.current });
 
@@ -431,20 +433,30 @@ export const FastGraph: React.FC<FastGraphProps> = ({
 
   // Handle canvas resize
   const handleResize = useCallback(() => {
-    if (!canvas || !rendererRef.current || !isInitialized) return;
+    if (!canvas || !containerRef.current || !rendererRef.current || !isInitialized) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const pixelRatio = window.devicePixelRatio || 1;
+    const rect = containerRef.current.getBoundingClientRect();
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2); // Cap pixel ratio to prevent excessive memory usage
 
-    // Add size limits to prevent WebGPU texture size errors
+    // Add size limits to prevent WebGPU texture size errors and infinite growth
     const maxDimension = 2048;
-    const targetWidth = Math.min(Math.floor(rect.width * pixelRatio), maxDimension);
-    const targetHeight = Math.min(Math.floor(rect.height * pixelRatio), maxDimension);
+    const minDimension = 100;
+    
+    // Ensure minimum size and prevent zero dimensions
+    const containerWidth = Math.max(rect.width, minDimension);
+    const containerHeight = Math.max(rect.height, minDimension);
+    
+    const targetWidth = Math.min(Math.floor(containerWidth * pixelRatio), maxDimension);
+    const targetHeight = Math.min(Math.floor(containerHeight * pixelRatio), maxDimension);
 
-    // Only resize if dimensions actually changed
-    if (canvas.width === targetWidth && canvas.height === targetHeight) {
+    // Check if size actually changed to prevent unnecessary operations
+    const lastSize = lastSizeRef.current;
+    if (lastSize.width === targetWidth && lastSize.height === targetHeight) {
       return;
     }
+
+    // Update size tracking
+    lastSizeRef.current = { width: targetWidth, height: targetHeight };
 
     // Set actual canvas resolution for high-DPI displays
     canvas.width = targetWidth;
@@ -596,9 +608,9 @@ export const FastGraph: React.FC<FastGraphProps> = ({
     handleResize();
   }, [width, height, handleResize]);
 
-  // Setup resize observer with debouncing
+  // Setup resize observer with debouncing - observe container, not canvas
   useEffect(() => {
-    if (!canvas) return;
+    if (!containerRef.current) return;
 
     let resizeTimeout: number;
     const debouncedResize = () => {
@@ -606,14 +618,28 @@ export const FastGraph: React.FC<FastGraphProps> = ({
       resizeTimeout = setTimeout(handleResize, 100);
     };
 
-    const resizeObserver = new ResizeObserver(debouncedResize);
-    resizeObserver.observe(canvas);
+    const resizeObserver = new ResizeObserver((entries) => {
+      // Only trigger resize if the container actually changed size
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        const lastSize = lastSizeRef.current;
+        const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+        const targetWidth = Math.min(Math.floor(width * pixelRatio), 2048);
+        const targetHeight = Math.min(Math.floor(height * pixelRatio), 2048);
+        
+        if (lastSize.width !== targetWidth || lastSize.height !== targetHeight) {
+          debouncedResize();
+        }
+      }
+    });
+    
+    resizeObserver.observe(containerRef.current);
 
     return () => {
       clearTimeout(resizeTimeout);
       resizeObserver.disconnect();
     };
-  }, [canvas, handleResize]);
+  }, [handleResize]);
 
   // Mount/unmount management
   useEffect(() => {
@@ -642,6 +668,11 @@ export const FastGraph: React.FC<FastGraphProps> = ({
     width: width,
     height: height,
     position: 'relative',
+    minWidth: '100px',
+    minHeight: '100px',
+    maxWidth: '2048px',
+    maxHeight: '2048px',
+    overflow: 'hidden',
     ...style,
   };
 
@@ -649,11 +680,13 @@ export const FastGraph: React.FC<FastGraphProps> = ({
     width: '100%',
     height: '100%',
     display: 'block',
+    maxWidth: '100%',
+    maxHeight: '100%',
   };
 
   // Always render canvas, but show overlays for different states
   return (
-    <div style={containerStyle}>
+    <div ref={containerRef} style={containerStyle}>
       <canvas
         ref={canvasRef}
         className={className}
