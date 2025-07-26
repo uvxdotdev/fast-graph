@@ -1,6 +1,6 @@
 {
     "name": "@uvxdotdev/fastgraph",
-    "version": "0.1.7",
+    "version": "0.1.8",
     "description": "High-performance graph rendering React component library powered by Rust, WASM, and WebGPU",
     "main": "dist/index.js",
     "module": "dist/index.esm.js",
