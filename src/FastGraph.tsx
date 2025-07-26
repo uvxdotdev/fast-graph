@@ -450,10 +450,6 @@ export const FastGraph: React.FC<FastGraphProps> = ({
     canvas.width = targetWidth;
     canvas.height = targetHeight;
 
-    // Set CSS size to maintain visual size
-    canvas.style.width = rect.width + 'px';
-    canvas.style.height = rect.height + 'px';
-
     try {
       if (rendererRef.current && typeof rendererRef.current.resize === 'function') {
         rendererRef.current.resize(canvas.width, canvas.height);
@@ -642,23 +638,26 @@ export const FastGraph: React.FC<FastGraphProps> = ({
     };
   }, []);
 
-  const canvasStyle: React.CSSProperties = {
+  const containerStyle: React.CSSProperties = {
     width: width,
     height: height,
-    display: 'block',
-
+    position: 'relative',
     ...style,
+  };
+
+  const canvasStyle: React.CSSProperties = {
+    width: '100%',
+    height: '100%',
+    display: 'block',
   };
 
   // Always render canvas, but show overlays for different states
   return (
-    <div style={{ position: 'relative', ...canvasStyle }}>
+    <div style={containerStyle}>
       <canvas
         ref={canvasRef}
         className={className}
         style={canvasStyle}
-        width={width}
-        height={height}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}

@@ -542,8 +542,6 @@ var FastGraph = ({
     }
     canvas.width = targetWidth;
     canvas.height = targetHeight;
-    canvas.style.width = rect.width + "px";
-    canvas.style.height = rect.height + "px";
     try {
       if (rendererRef.current && typeof rendererRef.current.resize === "function") {
         rendererRef.current.resize(canvas.width, canvas.height);
@@ -692,20 +690,23 @@ var FastGraph = ({
       setIsInitializing(false);
     };
   }, []);
-  const canvasStyle = {
+  const containerStyle = {
     width,
     height,
-    display: "block",
+    position: "relative",
     ...style
   };
+  const canvasStyle = {
+    width: "100%",
+    height: "100%",
+    display: "block"
+  };
   return /* @__PURE__ */ React.createElement("div", {
-    style: { position: "relative", ...canvasStyle }
+    style: containerStyle
   }, /* @__PURE__ */ React.createElement("canvas", {
     ref: canvasRef,
     className,
     style: canvasStyle,
-    width,
-    height,
     onMouseDown: handleMouseDown,
     onMouseMove: handleMouseMove,
     onMouseUp: handleMouseUp,

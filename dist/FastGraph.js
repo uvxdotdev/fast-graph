@@ -349,9 +349,6 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
         // Set actual canvas resolution for high-DPI displays
         canvas.width = targetWidth;
         canvas.height = targetHeight;
-        // Set CSS size to maintain visual size
-        canvas.style.width = rect.width + 'px';
-        canvas.style.height = rect.height + 'px';
         try {
             if (rendererRef.current && typeof rendererRef.current.resize === 'function') {
                 rendererRef.current.resize(canvas.width, canvas.height);
@@ -522,15 +519,20 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
             setIsInitializing(false);
         };
     }, []);
-    const canvasStyle = {
+    const containerStyle = {
         width: width,
         height: height,
-        display: 'block',
+        position: 'relative',
         ...style,
     };
+    const canvasStyle = {
+        width: '100%',
+        height: '100%',
+        display: 'block',
+    };
     // Always render canvas, but show overlays for different states
-    return (React.createElement("div", { style: { position: 'relative', ...canvasStyle } },
-        React.createElement("canvas", { ref: canvasRef, className: className, style: canvasStyle, width: width, height: height, onMouseDown: handleMouseDown, onMouseMove: handleMouseMove, onMouseUp: handleMouseUp, onMouseLeave: handleMouseUp, onTouchStart: handleTouchStart, onTouchMove: handleTouchMove, onTouchEnd: handleTouchEnd }),
+    return (React.createElement("div", { style: containerStyle },
+        React.createElement("canvas", { ref: canvasRef, className: className, style: canvasStyle, onMouseDown: handleMouseDown, onMouseMove: handleMouseMove, onMouseUp: handleMouseUp, onMouseLeave: handleMouseUp, onTouchStart: handleTouchStart, onTouchMove: handleTouchMove, onTouchEnd: handleTouchEnd }),
         isGraphMode && isInitialized && !error && (React.createElement("div", { style: {
                 position: 'absolute',
                 top: '10px',
