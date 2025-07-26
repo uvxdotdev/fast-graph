@@ -4,16 +4,22 @@ use web_sys::{console, HtmlCanvasElement};
 mod renderer;
 use renderer::{Renderer, MAX_NODES, MAX_EDGES};
 
-// Struct to represent a node for WebGPU rendering
-#[derive(Clone, Debug)]
+// Struct to represent a node for WebGPU rendering with physics
+#[repr(C)]
+#[derive(Clone, Debug, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct NodeData {
     pub x: f32,
     pub y: f32,
+    pub vx: f32,     // velocity x
+    pub vy: f32,     // velocity y
+    pub fx: f32,     // force accumulator x
+    pub fy: f32,     // force accumulator y
     pub r: f32,
     pub g: f32,
     pub b: f32,
     pub a: f32,
     pub size: f32,
+    pub mass: f32,   // for physics calculations
 }
 
 // Struct to represent an edge for WebGPU rendering
@@ -185,11 +191,16 @@ impl FastGraphRenderer {
                 self.nodes.push(NodeData {
                     x: node_data[base],
                     y: node_data[base + 1],
+                    vx: 0.0,
+                    vy: 0.0,
+                    fx: 0.0,
+                    fy: 0.0,
                     r: node_data[base + 2],
                     g: node_data[base + 3],
                     b: node_data[base + 4],
                     a: node_data[base + 5],
                     size: node_data[base + 6],
+                    mass: 1.0,
                 });
             }
         }
@@ -274,6 +285,44 @@ impl FastGraphRenderer {
     #[wasm_bindgen]
     pub fn get_current_edge_count(&self) -> u32 {
         self.edges.len() as u32
+    }
+
+    #[wasm_bindgen]
+    pub fn calculate_forces(&mut self, repulsion_strength: f32, repulsion_radius: f32) -> Result<(), JsValue> {
+        if !self.is_initialized {
+            return Err(JsValue::from_str("Renderer not initialized"));
+        }
+
+        // Convert current nodes to the right format for force calculation
+        let mut physics_nodes: Vec<NodeData> = self.nodes.iter().map(|node| NodeData {
+            x: node.x,
+            y: node.y,
+            vx: 0.0,
+            vy: 0.0,
+            fx: 0.0,
+            fy: 0.0,
+            r: node.r,
+            g: node.g,
+            b: node.b,
+            a: node.a,
+            size: node.size,
+            mass: 1.0,
+        }).collect();
+
+        // Prepare edge data for force calculation
+        let physics_edges: Vec<EdgeData> = self.edges.clone();
+
+        // Run force calculation on GPU
+        self.renderer.calculate_forces(
+            &mut physics_nodes,
+            &physics_edges,
+            repulsion_strength,
+            repulsion_radius
+        )?;
+
+        // Note: Forces are calculated on GPU but we don't read them back yet
+        // Position integration will happen in JavaScript for now
+        Ok(())
     }
 }
 

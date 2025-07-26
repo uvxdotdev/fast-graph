@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
-import { normalizedToCanvas, hexToRgba } from './utils';
+import { normalizedToCanvas, hexToRgba, updateGraphPhysics } from './utils';
 // Singleton WebGPU manager - only one component can be active
 let activeComponentId = null;
 const registerComponent = (id) => {
@@ -83,7 +83,7 @@ const loadWasmModule = async () => {
     })();
     return wasmModulePromise;
 };
-export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 = '#0000ff', width = 800, height = 600, className, style, }) => {
+export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 = '#0000ff', width = 800, height = 600, className, style, enablePhysics = false, dampingFactor = 0.99, springConstant = 0.01, restLength = 0.1, useGPUAcceleration = false, }) => {
     const [canvas, setCanvas] = useState(null);
     const containerRef = useRef(null);
     const rendererRef = useRef(null);
@@ -95,6 +95,10 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
     const [retryCount, setRetryCount] = useState(0);
     const [isActive, setIsActive] = useState(false);
     const [isGraphMode, setIsGraphMode] = useState(false);
+    // Physics state
+    const [animatedNodes, setAnimatedNodes] = useState([]);
+    const lastFrameTimeRef = useRef(0);
+    const physicsAnimationRef = useRef(null);
     // Camera state
     const cameraRef = useRef({ x: 0, y: 0, zoom: 1 });
     const isDraggingRef = useRef(false);
@@ -117,6 +121,51 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
     useEffect(() => {
         setIsGraphMode(nodes.length > 0);
     }, [nodes.length]);
+    // Initialize animated nodes when nodes prop changes
+    useEffect(() => {
+        setAnimatedNodes([...nodes]);
+    }, [nodes]);
+    // Physics animation loop
+    useEffect(() => {
+        if (!enablePhysics || !isInitialized || animatedNodes.length === 0) {
+            if (physicsAnimationRef.current) {
+                cancelAnimationFrame(physicsAnimationRef.current);
+                physicsAnimationRef.current = null;
+            }
+            return;
+        }
+        const animate = (currentTime) => {
+            if (!mountedRef.current)
+                return;
+            const deltaTime = lastFrameTimeRef.current > 0
+                ? (currentTime - lastFrameTimeRef.current) / 1000
+                : 0.016; // Default to ~60fps
+            lastFrameTimeRef.current = currentTime;
+            setAnimatedNodes(prevNodes => {
+                const hasVelocity = prevNodes.some(node => (node.vx && node.vx !== 0) || (node.vy && node.vy !== 0));
+                if (!hasVelocity)
+                    return prevNodes;
+                // Try GPU acceleration if enabled and available
+                if (useGPUAcceleration && rendererRef.current && typeof rendererRef.current.calculate_forces === 'function') {
+                    try {
+                        rendererRef.current.calculate_forces(0.001, 0.3); // repulsion_strength, repulsion_radius
+                    }
+                    catch (err) {
+                        console.warn('GPU acceleration failed, falling back to CPU:', err);
+                    }
+                }
+                return updateGraphPhysics(prevNodes, edges, deltaTime, dampingFactor, springConstant, restLength);
+            });
+            physicsAnimationRef.current = requestAnimationFrame(animate);
+        };
+        physicsAnimationRef.current = requestAnimationFrame(animate);
+        return () => {
+            if (physicsAnimationRef.current) {
+                cancelAnimationFrame(physicsAnimationRef.current);
+                physicsAnimationRef.current = null;
+            }
+        };
+    }, [enablePhysics, isInitialized, animatedNodes.length, dampingFactor, springConstant, restLength, useGPUAcceleration]);
     // Validate entity limits and show warnings
     useEffect(() => {
         if (!rendererRef.current || !isInitialized)
@@ -141,7 +190,7 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
             try {
                 // Prepare node data for GPU
                 const nodeData = [];
-                for (const node of nodes) {
+                for (const node of animatedNodes) {
                     const canvasPos = normalizedToCanvas(node.x, node.y, canvas.width, canvas.height);
                     const color = hexToRgba(node.color || '#3498db');
                     const size = node.size || 5;
@@ -156,7 +205,7 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                 }
                 // Prepare edge data for GPU
                 const edgeData = [];
-                const nodeMap = new Map(nodes.map(node => [node.id, node]));
+                const nodeMap = new Map(animatedNodes.map(node => [node.id, node]));
                 for (const edge of edges) {
                     const sourceNode = nodeMap.get(edge.source);
                     const targetNode = nodeMap.get(edge.target);
@@ -180,13 +229,13 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                 // Send data to Rust renderer
                 rendererRef.current.set_nodes(new Float32Array(nodeData));
                 rendererRef.current.set_edges(new Float32Array(edgeData));
-                console.log('Updated graph data:', { nodeCount: nodes.length, edgeCount: edges.length });
+                console.log('Updated graph data:', { nodeCount: animatedNodes.length, edgeCount: edges.length });
             }
             catch (err) {
                 console.error('Failed to update graph data:', err);
             }
         }
-    }, [nodes, edges, isInitialized, canvas, isGraphMode]);
+    }, [animatedNodes, edges, isInitialized, canvas, isGraphMode]);
     // Update camera in renderer
     useEffect(() => {
         if (rendererRef.current && isInitialized) {

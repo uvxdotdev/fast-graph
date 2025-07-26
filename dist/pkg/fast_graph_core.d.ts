@@ -23,6 +23,7 @@ export class FastGraphRenderer {
   get_max_edges(): number;
   get_current_node_count(): number;
   get_current_edge_count(): number;
+  calculate_forces(repulsion_strength: number, repulsion_radius: number): void;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -51,6 +52,7 @@ export interface InitOutput {
   readonly fastgraphrenderer_get_max_edges: (a: number) => number;
   readonly fastgraphrenderer_get_current_node_count: (a: number) => number;
   readonly fastgraphrenderer_get_current_edge_count: (a: number) => number;
+  readonly fastgraphrenderer_calculate_forces: (a: number, b: number, c: number) => [number, number];
   readonly __wbindgen_exn_store: (a: number) => void;
   readonly __externref_table_alloc: () => number;
   readonly __wbindgen_export_2: WebAssembly.Table;
@@ -58,8 +60,9 @@ export interface InitOutput {
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_export_6: WebAssembly.Table;
-  readonly closure749_externref_shim: (a: number, b: number, c: any) => void;
-  readonly closure2182_externref_shim: (a: number, b: number, c: any, d: any) => void;
+  readonly __externref_table_dealloc: (a: number) => void;
+  readonly closure782_externref_shim: (a: number, b: number, c: any) => void;
+  readonly closure2217_externref_shim: (a: number, b: number, c: any, d: any) => void;
   readonly __wbindgen_start: () => void;
 }
 

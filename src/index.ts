@@ -35,7 +35,11 @@ export {
   MAX_NODES,
   MAX_EDGES,
   checkGraphLimits,
-  getPerformanceRecommendations
+  getPerformanceRecommendations,
+  addRandomVelocity,
+  updateNodePosition,
+  applyDamping,
+  updateGraphPhysics
 } from './utils';
 
 export type { LimitCheckResult } from './utils';

@@ -124,6 +124,8 @@ export function normalizeNode(node) {
         id: node.id,
         x: Math.max(0, Math.min(1, node.x)),
         y: Math.max(0, Math.min(1, node.y)),
+        vx: node.vx || 0,
+        vy: node.vy || 0,
         color: node.color && isValidHexColor(node.color) ? node.color : DEFAULT_NODE_COLOR,
         size: Math.max(0.1, node.size || DEFAULT_NODE_SIZE),
         label: node.label
@@ -291,4 +293,116 @@ export function getPerformanceRecommendations(nodeCount, edgeCount) {
         recommendations.push('Consider clustering or aggregating nodes to improve performance and readability.');
     }
     return recommendations;
+}
+/**
+ * Adds random velocity to a node for physics simulation
+ */
+export function addRandomVelocity(node, minSpeed = 0.01, maxSpeed = 0.05) {
+    const speed = minSpeed + Math.random() * (maxSpeed - minSpeed);
+    const angle = Math.random() * 2 * Math.PI;
+    return {
+        ...node,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed
+    };
+}
+/**
+ * Updates node position based on velocity and deltaTime
+ */
+export function updateNodePosition(node, deltaTime) {
+    if (!node.vx && !node.vy) {
+        return node;
+    }
+    const vx = node.vx || 0;
+    const vy = node.vy || 0;
+    const newX = node.x + vx * deltaTime;
+    const newY = node.y + vy * deltaTime;
+    return {
+        ...node,
+        x: newX,
+        y: newY,
+        vx: vx,
+        vy: vy
+    };
+}
+/**
+ * Applies damping/friction to node velocity
+ */
+export function applyDamping(node, dampingFactor = 0.99) {
+    if (!node.vx && !node.vy) {
+        return node;
+    }
+    return {
+        ...node,
+        vx: (node.vx || 0) * dampingFactor,
+        vy: (node.vy || 0) * dampingFactor
+    };
+}
+/**
+ * Calculates spring force between two connected nodes
+ */
+export function calculateSpringForce(node1, node2, restLength = 0.1, springConstant = 0.01) {
+    const dx = node2.x - node1.x;
+    const dy = node2.y - node1.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    if (distance === 0)
+        return { fx: 0, fy: 0 };
+    // Spring force: F = k * (distance - restLength)
+    const force = springConstant * (distance - restLength);
+    // Normalize direction and apply force
+    const fx = (dx / distance) * force;
+    const fy = (dy / distance) * force;
+    return { fx, fy };
+}
+/**
+ * Applies spring forces to all nodes based on edges
+ */
+export function applySpringForces(nodes, edges, restLength = 0.1, springConstant = 0.01) {
+    // Create a map for quick node lookup
+    const nodeMap = new Map(nodes.map(node => [node.id, node]));
+    // Initialize force accumulator for each node
+    const forces = new Map(nodes.map(node => [node.id, { fx: 0, fy: 0 }]));
+    // Calculate spring forces for each edge
+    for (const edge of edges) {
+        const sourceNode = nodeMap.get(edge.source);
+        const targetNode = nodeMap.get(edge.target);
+        if (sourceNode && targetNode) {
+            const springForce = calculateSpringForce(sourceNode, targetNode, restLength, springConstant);
+            // Apply force to source node (toward target)
+            const sourceForce = forces.get(edge.source);
+            sourceForce.fx += springForce.fx;
+            sourceForce.fy += springForce.fy;
+            // Apply equal and opposite force to target node (toward source)
+            const targetForce = forces.get(edge.target);
+            targetForce.fx -= springForce.fx;
+            targetForce.fy -= springForce.fy;
+        }
+    }
+    // Apply forces to node velocities
+    return nodes.map(node => {
+        const force = forces.get(node.id);
+        if (!force)
+            return node;
+        const vx = (node.vx || 0) + force.fx;
+        const vy = (node.vy || 0) + force.fy;
+        return {
+            ...node,
+            vx,
+            vy
+        };
+    });
+}
+/**
+ * Updates all nodes in a graph with physics simulation including spring forces
+ */
+export function updateGraphPhysics(nodes, edges, deltaTime, dampingFactor = 0.99, springConstant = 0.01, restLength = 0.1) {
+    // Apply spring forces
+    let updatedNodes = applySpringForces(nodes, edges, restLength, springConstant);
+    // Update positions and apply damping
+    updatedNodes = updatedNodes.map(node => {
+        let updatedNode = updateNodePosition(node, deltaTime);
+        updatedNode = applyDamping(updatedNode, dampingFactor);
+        return updatedNode;
+    });
+    return updatedNodes;
 }

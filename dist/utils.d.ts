@@ -95,4 +95,31 @@ export declare function checkGraphLimits(nodes: GraphNode[], edges: GraphEdge[],
  * Gets performance recommendations based on graph size
  */
 export declare function getPerformanceRecommendations(nodeCount: number, edgeCount: number): string[];
+/**
+ * Adds random velocity to a node for physics simulation
+ */
+export declare function addRandomVelocity(node: GraphNode, minSpeed?: number, maxSpeed?: number): GraphNode;
+/**
+ * Updates node position based on velocity and deltaTime
+ */
+export declare function updateNodePosition(node: GraphNode, deltaTime: number): GraphNode;
+/**
+ * Applies damping/friction to node velocity
+ */
+export declare function applyDamping(node: GraphNode, dampingFactor?: number): GraphNode;
+/**
+ * Calculates spring force between two connected nodes
+ */
+export declare function calculateSpringForce(node1: GraphNode, node2: GraphNode, restLength?: number, springConstant?: number): {
+    fx: number;
+    fy: number;
+};
+/**
+ * Applies spring forces to all nodes based on edges
+ */
+export declare function applySpringForces(nodes: GraphNode[], edges: GraphEdge[], restLength?: number, springConstant?: number): GraphNode[];
+/**
+ * Updates all nodes in a graph with physics simulation including spring forces
+ */
+export declare function updateGraphPhysics(nodes: GraphNode[], edges: GraphEdge[], deltaTime: number, dampingFactor?: number, springConstant?: number, restLength?: number): GraphNode[];
 //# sourceMappingURL=utils.d.ts.map

@@ -17,6 +17,16 @@ export interface FastGraphProps {
     className?: string;
     /** React CSS properties for styling */
     style?: React.CSSProperties;
+    /** Enable physics animation for nodes with velocity */
+    enablePhysics?: boolean;
+    /** Damping factor for velocity (0-1, closer to 1 = less damping) */
+    dampingFactor?: number;
+    /** Spring constant for edge forces (higher = stronger springs) */
+    springConstant?: number;
+    /** Rest length for spring forces (desired distance between connected nodes) */
+    restLength?: number;
+    /** Enable GPU acceleration for force calculations (experimental) */
+    useGPUAcceleration?: boolean;
 }
 export declare const FastGraph: React.FC<FastGraphProps>;
 export default FastGraph;

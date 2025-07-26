@@ -8,6 +8,10 @@ export interface GraphNode {
     x: number;
     /** Y coordinate (0-1 normalized, where 0 is top edge, 1 is bottom edge) */
     y: number;
+    /** Optional velocity in X direction (normalized units per second) */
+    vx?: number;
+    /** Optional velocity in Y direction (normalized units per second) */
+    vy?: number;
     /** Optional color as hex string (e.g., "#ff0000"). Defaults to "#3498db" */
     color?: string;
     /** Optional size/radius in pixels. Defaults to 5 */

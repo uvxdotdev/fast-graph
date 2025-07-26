@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastGraph Physics Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        
+        h1 {
+            margin-bottom: 30px;
+        }
+        
+        .test-section {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .status {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        
+        #fastgraph-container {
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 10px;
+            display: inline-block;
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+        }
+        
+        button {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 10px 20px;
+            margin: 0 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: rgba(255,255,255,0.3);
+        }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "react": "https://esm.sh/react@18",
+                "react-dom": "https://esm.sh/react-dom@18",
+                "react-dom/client": "https://esm.sh/react-dom@18/client"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>🌸 FastGraph Spring Forces Test</h1>
+        
+        <div class="test-section">
+            <h2>🌸 Spring Forces Between Connected Nodes</h2>
+            <div id="status" class="status">Loading...</div>
+            
+            <div class="controls">
+                <button onclick="restartPhysics()">🔄 Restart Physics</button>
+                <button onclick="togglePhysics()">⏯️ Toggle Physics</button>
+                <button onclick="addMoreNodes()">➕ Add More Nodes</button>
+            </div>
+            
+            <div id="fastgraph-container"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import React, { useState, useEffect } from "react";
+        import { createRoot } from "react-dom/client";
+
+        let currentComponent = null;
+        let currentRoot = null;
+        let physicsEnabled = true;
+
+        async function loadAndTest() {
+            const statusDiv = document.getElementById("status");
+            const container = document.getElementById("fastgraph-container");
+
+            try {
+                statusDiv.textContent = "Loading FastGraph...";
+
+                const { 
+                    FastGraph, 
+                    generateRandomGraph, 
+                    addRandomVelocity 
+                } = await import("./dist/index.esm.js");
+
+                function PhysicsTest() {
+                    const [graphData, setGraphData] = useState(() => {
+                        const baseGraph = generateRandomGraph(8, 0.6);
+                        return {
+                            nodes: baseGraph.nodes.map(node => addRandomVelocity(node, 0.02, 0.05)),
+                            edges: baseGraph.edges
+                        };
+                    });
+                    
+                    const [physicsActive, setPhysicsActive] = useState(true);
+
+                    useEffect(() => {
+                        statusDiv.textContent = `✅ Spring Forces Active - ${graphData.nodes.length} nodes, ${graphData.edges.length} spring connections`;
+                    }, []);
+
+                    // Expose functions globally for buttons
+                    window.restartPhysics = () => {
+                        const baseGraph = generateRandomGraph(8, 0.6);
+                        setGraphData({
+                            nodes: baseGraph.nodes.map(node => addRandomVelocity(node, 0.02, 0.05)),
+                            edges: baseGraph.edges
+                        });
+                        setPhysicsActive(true);
+                        physicsEnabled = true;
+                        statusDiv.textContent = `🔄 Spring forces restarted - ${baseGraph.nodes.length} nodes, ${baseGraph.edges.length} connections`;
+                    };
+
+                    window.togglePhysics = () => {
+                        physicsEnabled = !physicsEnabled;
+                        setPhysicsActive(physicsEnabled);
+                        statusDiv.textContent = physicsEnabled ? "⏯️ Spring forces enabled" : "⏹️ Spring forces paused";
+                    };
+
+                    window.addMoreNodes = () => {
+                        const newGraph = generateRandomGraph(graphData.nodes.length + 3, 0.5);
+                        setGraphData({
+                            nodes: newGraph.nodes.map(node => addRandomVelocity(node, 0.01, 0.03)),
+                            edges: newGraph.edges
+                        });
+                        statusDiv.textContent = `➕ Added nodes - total: ${newGraph.nodes.length} nodes, ${newGraph.edges.length} springs`;
+                    };
+
+                    return React.createElement(FastGraph, {
+                        nodes: graphData.nodes,
+                        edges: graphData.edges,
+                        enablePhysics: physicsActive,
+                        dampingFactor: 0.98,
+                        springConstant: 0.02,
+                        restLength: 0.15,
+                        width: 1000,
+                        height: 600,
+                        style: {
+                            border: "2px solid rgba(255,255,255,0.5)",
+                            borderRadius: "10px",
+                            background: "#000",
+                            boxShadow: "0 10px 30px rgba(0,0,0,0.5)"
+                        }
+                    });
+                }
+
+                if (currentRoot) {
+                    currentRoot.unmount();
+                }
+
+                currentRoot = createRoot(container);
+                currentComponent = React.createElement(PhysicsTest);
+                currentRoot.render(currentComponent);
+
+                statusDiv.textContent = "🎯 Spring force test ready! Watch connected nodes attract!";
+
+            } catch (error) {
+                statusDiv.textContent = `❌ Error: ${error.message}`;
+                console.error('Physics test error:', error);
+            }
+        }
+
+        loadAndTest();
+    </script>
+</body>
+</html>

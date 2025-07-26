@@ -114,7 +114,7 @@
                 width: 1200px !important;
                 height: 700px !important;
             }
-            
+
             #fastgraph-container {
                 will-change: transform;
                 transform: translateZ(0);
@@ -146,9 +146,18 @@
                         <option value="star">Star</option>
                         <option value="complete">Complete</option>
                         <option value="bipartite">Bipartite</option>
-                        <option value="large-random">Large Random (1K nodes)</option>
-                        <option value="large-grid">Large Grid (2K nodes)</option>
-                        <option value="stress-test">Stress Test (10K nodes)</option>
+                        <option value="large-random">
+                            Large Random (1K nodes)
+                        </option>
+                        <option value="large-grid">
+                            Large Grid (~2K nodes)
+                        </option>
+                        <option value="stress-test">
+                            Stress Test (10K nodes)
+                        </option>
+                        <option value="physics">
+                            Physics Demo (Moving nodes)
+                        </option>
                     </select>
                 </div>
                 <div class="color-control">
@@ -162,7 +171,6 @@
                     />
                     <span id="node-count-value">6</span>
                 </div>
-
             </div>
 
             <div id="status" class="status loading">Initializing...</div>
@@ -195,7 +203,13 @@
                     <span id="camera-info">Zoom: 1.0x | Position: (0, 0)</span>
                 </p>
                 <p><strong>Tech:</strong> React + Rust/WASM + WebGPU</p>
-                <p><strong>Controls:</strong> <em>Mouse: Click & drag to pan | Use +/- buttons to zoom | Touch: Drag to pan</em></p>
+                <p>
+                    <strong>Controls:</strong>
+                    <em
+                        >Mouse: Click & drag to pan | Use +/- buttons to zoom |
+                        Touch: Drag to pan</em
+                    >
+                </p>
             </div>
         </div>
 
@@ -234,6 +248,7 @@
                         generateStarGraph,
                         generateCompleteGraph,
                         generateBipartiteGraph,
+                        addRandomVelocity,
                     } = await import("./dist/index.esm.js");
 
                     // Create interactive component
@@ -298,13 +313,32 @@
                                     );
                                     break;
                                 case "large-random":
-                                    newGraphData = generateRandomGraph(1000, 0.02);
+                                    newGraphData = generateRandomGraph(
+                                        1000,
+                                        0.02,
+                                    );
                                     break;
                                 case "large-grid":
                                     newGraphData = generateGridGraph(45, 45); // ~2000 nodes
                                     break;
                                 case "stress-test":
-                                    newGraphData = generateRandomGraph(10000, 0.001);
+                                    newGraphData = generateRandomGraph(
+                                        10000,
+                                        0.001,
+                                    );
+                                    break;
+                                case "physics":
+                                    // Create nodes with random velocities for spring force demo
+                                    const baseGraph = generateRandomGraph(
+                                        Math.min(nodeCount, 12),
+                                        0.5,
+                                    );
+                                    newGraphData = {
+                                        nodes: baseGraph.nodes.map((node) =>
+                                            addRandomVelocity(node, 0.01, 0.04),
+                                        ),
+                                        edges: baseGraph.edges,
+                                    };
                                     break;
                                 default:
                                     newGraphData = getExampleGraph("linear");
@@ -370,6 +404,10 @@
                             edges: graphData.edges,
                             width: 1200,
                             height: 700,
+                            enablePhysics: graphType === "physics",
+                            dampingFactor: 0.98,
+                            springConstant: 0.02,
+                            restLength: 0.15,
                             style: {
                                 margin: "0 auto",
                                 border: "1px solid #ddd",
