@@ -1,212 +1,410 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FastGraph Test</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            margin: 20px;
-            background: #f5f5f5;
-        }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        .test-case {
-            margin: 20px 0;
-            padding: 15px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        .error {
-            background: #ffebee;
-            color: #c62828;
-            padding: 15px;
-            border-radius: 4px;
-            margin: 20px 0;
-        }
-        .loading {
-            background: #e3f2fd;
-            color: #1976d2;
-            padding: 15px;
-            border-radius: 4px;
-            margin: 20px 0;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>FastGraph Component Test</h1>
-        <div id="loading" class="loading">Loading FastGraph component...</div>
-        <div id="error" class="error" style="display: none;"></div>
-        
-        <div class="test-case">
-            <div class="examples">
-                <div class="example">
-                    <h3>Test 1: Red to Blue Gradient (Inactive - WebGPU in use)</h3>
-                    <div id="test1"></div>
-                </div>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FastGraph Single Test</title>
+        <style>
+            body {
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                margin: 0;
+                padding: 20px;
+                background: #f5f5f5;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                min-height: 100vh;
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+                text-rendering: optimizeLegibility;
+            }
+
+            .container {
+                max-width: 1400px;
+                width: 95%;
+                background: white;
+                padding: 30px;
+                border-radius: 12px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                text-align: center;
+            }
+
+            h1 {
+                color: #333;
+                margin-bottom: 10px;
+            }
+
+            .subtitle {
+                color: #666;
+                margin-bottom: 30px;
+                font-size: 16px;
+            }
+
+            .test-container {
+                margin: 20px 0;
+                padding: 20px;
+                border: 2px solid #e9ecef;
+                border-radius: 8px;
+                background: #fafafa;
+                max-width: 1240px;
+                max-height: 740px;
+                overflow: hidden;
+            }
+
+            .controls {
+                display: flex;
+                gap: 20px;
+                justify-content: center;
+                align-items: center;
+                margin: 20px 0;
+                flex-wrap: wrap;
+            }
+
+            .color-control {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .color-control label {
+                font-weight: 500;
+                color: #555;
+            }
+
+            .color-control input[type="color"] {
+                width: 50px;
+                height: 35px;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+            }
+
+            .status {
+                margin: 15px 0;
+                padding: 10px;
+                border-radius: 6px;
+                font-weight: 500;
+            }
+
+            .status.success {
+                background: #d4edda;
+                color: #155724;
+                border: 1px solid #c3e6cb;
+            }
+
+            .status.error {
+                background: #f8d7da;
+                color: #721c24;
+                border: 1px solid #f5c6cb;
+            }
+
+            .status.loading {
+                background: #d1ecf1;
+                color: #0c5460;
+                border: 1px solid #bee5eb;
+            }
+
+            canvas {
+                backface-visibility: hidden;
+                transform: translateZ(0);
+                -webkit-transform: translateZ(0);
+                max-width: 1200px !important;
+                max-height: 700px !important;
+                width: 1200px !important;
+                height: 700px !important;
+            }
             
-                <div class="example">
-                    <h3>Test 2: Purple to Cyan Gradient (Inactive - WebGPU in use)</h3>
-                    <div id="test2"></div>
+            #fastgraph-container {
+                will-change: transform;
+                transform: translateZ(0);
+                -webkit-transform: translateZ(0);
+                max-width: 1200px;
+                max-height: 700px;
+                width: 1200px;
+                height: 700px;
+                overflow: hidden;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🚀 FastGraph Graph Rendering Test</h1>
+            <p class="subtitle">
+                Testing WebGPU-powered graph rendering with nodes and edges
+            </p>
+
+            <div class="controls">
+                <div class="color-control">
+                    <label for="graph-type">Graph Type:</label>
+                    <select id="graph-type">
+                        <option value="linear">Linear Chain</option>
+                        <option value="grid">Grid</option>
+                        <option value="random">Random</option>
+                        <option value="circular">Circular</option>
+                        <option value="tree">Tree</option>
+                        <option value="star">Star</option>
+                        <option value="complete">Complete</option>
+                        <option value="bipartite">Bipartite</option>
+                        <option value="large-random">Large Random (1K nodes)</option>
+                        <option value="large-grid">Large Grid (2K nodes)</option>
+                        <option value="stress-test">Stress Test (10K nodes)</option>
+                    </select>
                 </div>
-            
-                <div class="example">
-                    <h3>Test 3: Orange to Pink (Inactive - WebGPU in use)</h3>
-                    <div id="test3"></div>
+                <div class="color-control">
+                    <label for="node-count">Node Count:</label>
+                    <input
+                        type="range"
+                        id="node-count"
+                        min="3"
+                        max="15"
+                        value="6"
+                    />
+                    <span id="node-count-value">6</span>
                 </div>
-            
-                <div class="example">
-                    <h3>Test 4: Green to Yellow (Inactive - WebGPU in use)</h3>
-                    <div id="test4"></div>
-                </div>
-            
-                <div class="example">
-                    <h3>Test 5: Multiple Components Demo</h3>
-                    <p style="color: #666; font-size: 14px; margin-bottom: 10px;">
-                        This demonstrates the WebGPU limitation - only the first component can be active.
-                    </p>
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                        <div id="test5a"></div>
-                        <div id="test5b"></div>
-                        <div id="test5c"></div>
-                        <div id="test5d"></div>
-                    </div>
-                </div>
+
             </div>
 
-    <script type="importmap">
-    {
-        "imports": {
-            "react": "https://esm.sh/react@18",
-            "react-dom": "https://esm.sh/react-dom@18",
-            "react-dom/client": "https://esm.sh/react-dom@18/client",
-            "react/jsx-runtime": "https://esm.sh/react@18/jsx-runtime",
-            "react/jsx-dev-runtime": "https://esm.sh/react@18/jsx-dev-runtime"
-        }
-    }
-    </script>
-    
-    <script type="module">
-        import React from 'react';
-        import { createRoot } from 'react-dom/client';
+            <div id="status" class="status loading">Initializing...</div>
 
-        async function loadAndTest() {
-            try {
-                document.getElementById('loading').textContent = 'Loading WASM module...';
-                
-                // Import the FastGraph component
-                const { FastGraph } = await import('./dist/index.esm.js');
-                
-                document.getElementById('loading').style.display = 'none';
-                
-                // Render test cases
-                renderTests(React, createRoot, FastGraph);
-                
-            } catch (error) {
-                console.error('Failed to load FastGraph:', error);
-                document.getElementById('loading').style.display = 'none';
-                const errorDiv = document.getElementById('error');
-                errorDiv.style.display = 'block';
-                errorDiv.innerHTML = `
-                    <strong>Error loading FastGraph:</strong> ${error.message}<br>
+            <div class="test-container">
+                <div id="fastgraph-container"></div>
+            </div>
+
+            <div
+                id="graph-info"
+                style="
+                    margin-top: 20px;
+                    font-size: 14px;
+                    color: #666;
+                    text-align: left;
+                "
+            >
+                <p>
+                    <strong>Current Graph:</strong>
+                    <span id="current-graph">Linear Chain</span>
+                </p>
+                <p>
+                    <strong>Nodes:</strong>
+                    <span id="node-count-display">6</span> |
+                    <strong>Edges:</strong>
+                    <span id="edge-count-display">5</span>
+                </p>
+                <p>
+                    <strong>Camera:</strong>
+                    <span id="camera-info">Zoom: 1.0x | Position: (0, 0)</span>
+                </p>
+                <p><strong>Tech:</strong> React + Rust/WASM + WebGPU</p>
+                <p><strong>Controls:</strong> <em>Mouse: Click & drag to pan | Use +/- buttons to zoom | Touch: Drag to pan</em></p>
+            </div>
+        </div>
+
+        <script type="importmap">
+            {
+                "imports": {
+                    "react": "https://esm.sh/react@18",
+                    "react-dom": "https://esm.sh/react-dom@18",
+                    "react-dom/client": "https://esm.sh/react-dom@18/client",
+                    "react/jsx-runtime": "https://esm.sh/react@18/jsx-runtime",
+                    "react/jsx-dev-runtime": "https://esm.sh/react@18/jsx-dev-runtime"
+                }
+            }
+        </script>
+
+        <script type="module">
+            import React, { useState, useEffect } from "react";
+            import { createRoot } from "react-dom/client";
+
+            async function loadAndTest() {
+                const statusDiv = document.getElementById("status");
+
+                try {
+                    statusDiv.className = "status loading";
+                    statusDiv.textContent = "Loading FastGraph component...";
+
+                    // Import the FastGraph component and utilities
+                    const {
+                        FastGraph,
+                        getExampleGraph,
+                        generateLinearGraph,
+                        generateGridGraph,
+                        generateRandomGraph,
+                        generateCircularGraph,
+                        generateTreeGraph,
+                        generateStarGraph,
+                        generateCompleteGraph,
+                        generateBipartiteGraph,
+                    } = await import("./dist/index.esm.js");
+
+                    // Create interactive component
+                    function InteractiveDemo() {
+                        const [graphType, setGraphType] = useState("linear");
+                        const [nodeCount, setNodeCount] = useState(6);
+                        const [graphData, setGraphData] = useState(() =>
+                            getExampleGraph("linear"),
+                        );
+
+                        // Update graph data when type or count changes
+                        useEffect(() => {
+                            let newGraphData;
+                            switch (graphType) {
+                                case "linear":
+                                    newGraphData =
+                                        generateLinearGraph(nodeCount);
+                                    break;
+                                case "grid":
+                                    const cols = Math.ceil(
+                                        Math.sqrt(nodeCount),
+                                    );
+                                    const rows = Math.ceil(nodeCount / cols);
+                                    newGraphData = generateGridGraph(
+                                        rows,
+                                        cols,
+                                    );
+                                    break;
+                                case "random":
+                                    newGraphData = generateRandomGraph(
+                                        nodeCount,
+                                        0.4,
+                                    );
+                                    break;
+                                case "circular":
+                                    newGraphData =
+                                        generateCircularGraph(nodeCount);
+                                    break;
+                                case "tree":
+                                    newGraphData = generateTreeGraph(
+                                        3,
+                                        Math.max(2, Math.floor(nodeCount / 3)),
+                                    );
+                                    break;
+                                case "star":
+                                    newGraphData = generateStarGraph(
+                                        nodeCount - 1,
+                                    );
+                                    break;
+                                case "complete":
+                                    newGraphData = generateCompleteGraph(
+                                        Math.min(nodeCount, 8),
+                                    ); // Limit for visibility
+                                    break;
+                                case "bipartite":
+                                    const leftCount = Math.ceil(nodeCount / 2);
+                                    const rightCount = nodeCount - leftCount;
+                                    newGraphData = generateBipartiteGraph(
+                                        leftCount,
+                                        rightCount,
+                                        0.6,
+                                    );
+                                    break;
+                                case "large-random":
+                                    newGraphData = generateRandomGraph(1000, 0.02);
+                                    break;
+                                case "large-grid":
+                                    newGraphData = generateGridGraph(45, 45); // ~2000 nodes
+                                    break;
+                                case "stress-test":
+                                    newGraphData = generateRandomGraph(10000, 0.001);
+                                    break;
+                                default:
+                                    newGraphData = getExampleGraph("linear");
+                            }
+                            setGraphData(newGraphData);
+
+                            // Update info display
+                            document.getElementById(
+                                "current-graph",
+                            ).textContent =
+                                graphType.charAt(0).toUpperCase() +
+                                graphType.slice(1);
+                            document.getElementById(
+                                "node-count-display",
+                            ).textContent = newGraphData.nodes.length;
+                            document.getElementById(
+                                "edge-count-display",
+                            ).textContent = newGraphData.edges.length;
+                        }, [graphType, nodeCount]);
+
+                        // Listen to control changes
+                        useEffect(() => {
+                            const graphTypeSelect =
+                                document.getElementById("graph-type");
+                            const nodeCountSlider =
+                                document.getElementById("node-count");
+                            const nodeCountValue =
+                                document.getElementById("node-count-value");
+
+                            const handleGraphTypeChange = (e) => {
+                                setGraphType(e.target.value);
+                            };
+
+                            const handleNodeCountChange = (e) => {
+                                const count = parseInt(e.target.value);
+                                setNodeCount(count);
+                                nodeCountValue.textContent = count;
+                            };
+
+                            graphTypeSelect.addEventListener(
+                                "change",
+                                handleGraphTypeChange,
+                            );
+                            nodeCountSlider.addEventListener(
+                                "input",
+                                handleNodeCountChange,
+                            );
+
+                            return () => {
+                                graphTypeSelect.removeEventListener(
+                                    "change",
+                                    handleGraphTypeChange,
+                                );
+                                nodeCountSlider.removeEventListener(
+                                    "input",
+                                    handleNodeCountChange,
+                                );
+                            };
+                        }, []);
+
+                        return React.createElement(FastGraph, {
+                            nodes: graphData.nodes,
+                            edges: graphData.edges,
+                            width: 1200,
+                            height: 700,
+                            style: {
+                                margin: "0 auto",
+                                border: "1px solid #ddd",
+                                borderRadius: "8px",
+                                maxWidth: "100%",
+                                maxHeight: "700px",
+                                width: "1200px",
+                                height: "700px",
+                            },
+                        });
+                    }
+
+                    // Store library functions globally for easier access
+                    window.fastGraphLib = await import("./dist/index.esm.js");
+
+                    // Render the component
+                    const root = createRoot(
+                        document.getElementById("fastgraph-container"),
+                    );
+                    root.render(React.createElement(InteractiveDemo));
+
+                    statusDiv.className = "status success";
+                    statusDiv.textContent =
+                        "✅ FastGraph component loaded successfully! Select different graph types above to see various layouts.";
+                } catch (error) {
+                    console.error("Failed to load FastGraph:", error);
+                    statusDiv.className = "status error";
+                    statusDiv.innerHTML = `
+                    <strong>❌ Error loading FastGraph:</strong> ${error.message}<br>
                     <small>Make sure you have built the library with: <code>./build.sh</code></small>
                 `;
+                }
             }
-        }
 
-        function renderTests(React, createRoot, FastGraph) {
-            try {
-                // Test 1: Basic red to blue
-                const root1 = createRoot(document.getElementById('test1'));
-                root1.render(React.createElement(FastGraph, {
-                    color1: '#ff0000',
-                    color2: '#0000ff',
-                    width: 400,
-                    height: 200
-                }));
-                
-                // Test 2: Purple to cyan
-                const root2 = createRoot(document.getElementById('test2'));
-                root2.render(React.createElement(FastGraph, {
-                    color1: '#8b00ff',
-                    color2: '#00ffff',
-                    width: 400,
-                    height: 200
-                }));
-                // Test 3: Small size
-                const root3 = createRoot(document.getElementById('test3'));
-                root3.render(React.createElement(FastGraph, {
-                    color1: '#ff8c00',
-                    color2: '#ff1493',
-                    width: 200,
-                    height: 100
-                }));
-                
-                // Test 4: Wide component
-                const root4 = createRoot(document.getElementById('test4'));
-                root4.render(React.createElement(FastGraph, {
-                    color1: '#32cd32',
-                    color2: '#ffff00',
-                    width: 600,
-                    height: 150
-                }));
-                
-                // Test 5: Multiple small components
-                const root5a = createRoot(document.getElementById('test5a'));
-                root5a.render(React.createElement(FastGraph, {
-                    color1: '#ff0000',
-                    color2: '#00ff00',
-                    width: 150,
-                    height: 80
-                }));
-                
-                const root5b = createRoot(document.getElementById('test5b'));
-                root5b.render(React.createElement(FastGraph, {
-                    color1: '#0000ff',
-                    color2: '#ffff00',
-                    width: 150,
-                    height: 80
-                }));
-                
-                const root5c = createRoot(document.getElementById('test5c'));
-                root5c.render(React.createElement(FastGraph, {
-                    color1: '#ff00ff',
-                    color2: '#00ffff',
-                    width: 150,
-                    height: 80
-                }));
-                
-                const root5d = createRoot(document.getElementById('test5d'));
-                root5d.render(React.createElement(FastGraph, {
-                    color1: '#ffa500',
-                    color2: '#800080',
-                    width: 150,
-                    height: 80
-                }));
-                
-                // All other components will show inactive state since only one can be active
-                
-                console.log('All tests rendered successfully!');
-                
-            } catch (error) {
-                console.error('Error rendering tests:', error);
-                const errorDiv = document.getElementById('error');
-                errorDiv.style.display = 'block';
-                errorDiv.innerHTML = `<strong>Render Error:</strong> ${error.message}`;
-            }
-        }
-        
-        loadAndTest();
-    </script>
-    
-
-</body>
+            loadAndTest();
+        </script>
+    </body>
 </html>

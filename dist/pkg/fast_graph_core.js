@@ -239,11 +239,18 @@ function debugString(val) {
     // TODO we could test for more things here, like `Set`s and `Map`s.
     return className;
 }
+
+function passArrayF32ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 4, 4) >>> 0;
+    getFloat32ArrayMemory0().set(arg, ptr / 4);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
+}
 function __wbg_adapter_32(arg0, arg1, arg2) {
-    wasm.closure748_externref_shim(arg0, arg1, arg2);
+    wasm.closure749_externref_shim(arg0, arg1, arg2);
 }
 
-function __wbg_adapter_916(arg0, arg1, arg2, arg3) {
+function __wbg_adapter_932(arg0, arg1, arg2, arg3) {
     wasm.closure2182_externref_shim(arg0, arg1, arg2, arg3);
 }
 
@@ -379,6 +386,87 @@ export class FastGraphRenderer {
         const ptr0 = passStringToWasm0(hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         wasm.fastgraphrenderer_set_color2_hex(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {Float32Array} node_data
+     */
+    set_nodes(node_data) {
+        const ptr0 = passArrayF32ToWasm0(node_data, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.fastgraphrenderer_set_nodes(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {Float32Array} edge_data
+     */
+    set_edges(edge_data) {
+        const ptr0 = passArrayF32ToWasm0(edge_data, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.fastgraphrenderer_set_edges(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {number} x
+     * @param {number} y
+     */
+    set_camera_position(x, y) {
+        wasm.fastgraphrenderer_set_camera_position(this.__wbg_ptr, x, y);
+    }
+    /**
+     * @param {number} zoom
+     */
+    set_camera_zoom(zoom) {
+        wasm.fastgraphrenderer_set_camera_zoom(this.__wbg_ptr, zoom);
+    }
+    /**
+     * @returns {number}
+     */
+    get_camera_position_x() {
+        const ret = wasm.fastgraphrenderer_get_camera_position_x(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get_camera_position_y() {
+        const ret = wasm.fastgraphrenderer_get_camera_position_y(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get_camera_zoom() {
+        const ret = wasm.fastgraphrenderer_get_camera_zoom(this.__wbg_ptr);
+        return ret;
+    }
+    reset_camera() {
+        wasm.fastgraphrenderer_reset_camera(this.__wbg_ptr);
+    }
+    /**
+     * @returns {number}
+     */
+    get_max_nodes() {
+        const ret = wasm.fastgraphrenderer_get_max_nodes(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get_max_edges() {
+        const ret = wasm.fastgraphrenderer_get_max_edges(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get_current_node_count() {
+        const ret = wasm.fastgraphrenderer_get_current_node_count(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get_current_edge_count() {
+        const ret = wasm.fastgraphrenderer_get_current_edge_count(this.__wbg_ptr);
+        return ret >>> 0;
     }
 }
 
@@ -1137,7 +1225,7 @@ function __wbg_get_imports() {
                 const a = state0.a;
                 state0.a = 0;
                 try {
-                    return __wbg_adapter_916(a, state0.b, arg0, arg1);
+                    return __wbg_adapter_932(a, state0.b, arg0, arg1);
                 } finally {
                     state0.a = a;
                 }
@@ -1291,6 +1379,12 @@ function __wbg_get_imports() {
     }, arguments) };
     imports.wbg.__wbg_setPipeline_78f8f6d440dddd25 = function(arg0, arg1) {
         arg0.setPipeline(arg1);
+    };
+    imports.wbg.__wbg_setVertexBuffer_b0d3128a04bfd766 = function(arg0, arg1, arg2, arg3, arg4) {
+        arg0.setVertexBuffer(arg1 >>> 0, arg2, arg3, arg4);
+    };
+    imports.wbg.__wbg_setVertexBuffer_edbff6ddb5055174 = function(arg0, arg1, arg2, arg3) {
+        arg0.setVertexBuffer(arg1 >>> 0, arg2, arg3);
     };
     imports.wbg.__wbg_set_bb8cecf6a62b9f46 = function() { return handleError(function (arg0, arg1, arg2) {
         const ret = Reflect.set(arg0, arg1, arg2);
@@ -1975,8 +2069,8 @@ function __wbg_get_imports() {
         const ret = false;
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper1965 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 749, __wbg_adapter_32);
+    imports.wbg.__wbindgen_closure_wrapper1993 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 750, __wbg_adapter_32);
         return ret;
     };
     imports.wbg.__wbindgen_debug_string = function(arg0, arg1) {

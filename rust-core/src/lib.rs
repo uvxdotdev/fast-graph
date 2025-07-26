@@ -2,7 +2,33 @@ use wasm_bindgen::prelude::*;
 use web_sys::{console, HtmlCanvasElement};
 
 mod renderer;
-use renderer::Renderer;
+use renderer::{Renderer, MAX_NODES, MAX_EDGES};
+
+// Struct to represent a node for WebGPU rendering
+#[derive(Clone, Debug)]
+pub struct NodeData {
+    pub x: f32,
+    pub y: f32,
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+    pub a: f32,
+    pub size: f32,
+}
+
+// Struct to represent an edge for WebGPU rendering
+#[derive(Clone, Debug)]
+pub struct EdgeData {
+    pub x1: f32,
+    pub y1: f32,
+    pub x2: f32,
+    pub y2: f32,
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+    pub a: f32,
+    pub width: f32,
+}
 
 // A macro to provide `println!(..)`-style syntax for `console.log` logging.
 macro_rules! log {
@@ -16,6 +42,10 @@ pub struct FastGraphRenderer {
     renderer: Renderer,
     color1: [f32; 4],
     color2: [f32; 4],
+    nodes: Vec<NodeData>,
+    edges: Vec<EdgeData>,
+    camera_position: [f32; 2],
+    camera_zoom: f32,
     is_initialized: bool,
     is_rendering: bool,
 }
@@ -31,6 +61,10 @@ impl FastGraphRenderer {
             renderer: Renderer::new(),
             color1: [1.0, 0.0, 0.0, 1.0], // Default red
             color2: [0.0, 0.0, 1.0, 1.0], // Default blue
+            nodes: Vec::new(),
+            edges: Vec::new(),
+            camera_position: [0.0, 0.0],
+            camera_zoom: 1.0,
             is_initialized: false,
             is_rendering: false,
         }
@@ -86,7 +120,7 @@ impl FastGraphRenderer {
         
         // Perform render with error handling
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            self.renderer.render(time, &self.color1, &self.color2);
+            self.renderer.render(time, &self.color1, &self.color2, &self.nodes, &self.edges, &self.camera_position, self.camera_zoom);
         })) {
             Ok(_) => {},
             Err(_) => {
@@ -135,6 +169,111 @@ impl FastGraphRenderer {
         if let Some(color) = parse_hex_color(hex) {
             self.color2 = color;
         }
+    }
+
+    #[wasm_bindgen]
+    pub fn set_nodes(&mut self, node_data: &[f32]) {
+        self.nodes.clear();
+        
+        // Each node has 7 floats: x, y, r, g, b, a, size
+        let stride = 7;
+        let node_count = node_data.len() / stride;
+        
+        for i in 0..node_count {
+            let base = i * stride;
+            if base + stride <= node_data.len() {
+                self.nodes.push(NodeData {
+                    x: node_data[base],
+                    y: node_data[base + 1],
+                    r: node_data[base + 2],
+                    g: node_data[base + 3],
+                    b: node_data[base + 4],
+                    a: node_data[base + 5],
+                    size: node_data[base + 6],
+                });
+            }
+        }
+        
+        log!("Updated nodes: {} nodes", self.nodes.len());
+    }
+
+    #[wasm_bindgen]
+    pub fn set_edges(&mut self, edge_data: &[f32]) {
+        self.edges.clear();
+        
+        // Each edge has 9 floats: x1, y1, x2, y2, r, g, b, a, width
+        let stride = 9;
+        let edge_count = edge_data.len() / stride;
+        
+        for i in 0..edge_count {
+            let base = i * stride;
+            if base + stride <= edge_data.len() {
+                self.edges.push(EdgeData {
+                    x1: edge_data[base],
+                    y1: edge_data[base + 1],
+                    x2: edge_data[base + 2],
+                    y2: edge_data[base + 3],
+                    r: edge_data[base + 4],
+                    g: edge_data[base + 5],
+                    b: edge_data[base + 6],
+                    a: edge_data[base + 7],
+                    width: edge_data[base + 8],
+                });
+            }
+        }
+        
+        log!("Updated edges: {} edges", self.edges.len());
+    }
+
+    #[wasm_bindgen]
+    pub fn set_camera_position(&mut self, x: f32, y: f32) {
+        self.camera_position = [x, y];
+    }
+
+    #[wasm_bindgen]
+    pub fn set_camera_zoom(&mut self, zoom: f32) {
+        self.camera_zoom = zoom.max(0.1).min(10.0); // Clamp zoom between 0.1x and 10x
+    }
+
+    #[wasm_bindgen]
+    pub fn get_camera_position_x(&self) -> f32 {
+        self.camera_position[0]
+    }
+
+    #[wasm_bindgen]
+    pub fn get_camera_position_y(&self) -> f32 {
+        self.camera_position[1]
+    }
+
+    #[wasm_bindgen]
+    pub fn get_camera_zoom(&self) -> f32 {
+        self.camera_zoom
+    }
+
+    #[wasm_bindgen]
+    pub fn reset_camera(&mut self) {
+        self.camera_position = [0.0, 0.0];
+        self.camera_zoom = 1.0;
+    }
+
+    #[wasm_bindgen]
+    pub fn get_max_nodes(&self) -> u32 {
+        MAX_NODES as u32
+    }
+
+    #[wasm_bindgen]
+    pub fn get_max_edges(&self) -> u32 {
+        MAX_EDGES as u32
+    }
+
+    #[wasm_bindgen]
+    pub fn get_current_node_count(&self) -> u32 {
+        self.nodes.len() as u32
+    }
+
+    #[wasm_bindgen]
+    pub fn get_current_edge_count(&self) -> u32 {
+        self.edges.len() as u32
     }
 }
 

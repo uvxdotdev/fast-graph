@@ -16,6 +16,9 @@ struct Uniforms {
     resolution: vec2<f32>,
     color1: vec4<f32>,
     color2: vec4<f32>,
+    camera_position: vec2<f32>,
+    camera_zoom: f32,
+    _padding2: f32,
 }
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;

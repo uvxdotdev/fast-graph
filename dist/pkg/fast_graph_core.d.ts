@@ -11,6 +11,18 @@ export class FastGraphRenderer {
   set_color2(r: number, g: number, b: number, a: number): void;
   set_color1_hex(hex: string): void;
   set_color2_hex(hex: string): void;
+  set_nodes(node_data: Float32Array): void;
+  set_edges(edge_data: Float32Array): void;
+  set_camera_position(x: number, y: number): void;
+  set_camera_zoom(zoom: number): void;
+  get_camera_position_x(): number;
+  get_camera_position_y(): number;
+  get_camera_zoom(): number;
+  reset_camera(): void;
+  get_max_nodes(): number;
+  get_max_edges(): number;
+  get_current_node_count(): number;
+  get_current_edge_count(): number;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -27,6 +39,18 @@ export interface InitOutput {
   readonly fastgraphrenderer_set_color2: (a: number, b: number, c: number, d: number, e: number) => void;
   readonly fastgraphrenderer_set_color1_hex: (a: number, b: number, c: number) => void;
   readonly fastgraphrenderer_set_color2_hex: (a: number, b: number, c: number) => void;
+  readonly fastgraphrenderer_set_nodes: (a: number, b: number, c: number) => void;
+  readonly fastgraphrenderer_set_edges: (a: number, b: number, c: number) => void;
+  readonly fastgraphrenderer_set_camera_position: (a: number, b: number, c: number) => void;
+  readonly fastgraphrenderer_set_camera_zoom: (a: number, b: number) => void;
+  readonly fastgraphrenderer_get_camera_position_x: (a: number) => number;
+  readonly fastgraphrenderer_get_camera_position_y: (a: number) => number;
+  readonly fastgraphrenderer_get_camera_zoom: (a: number) => number;
+  readonly fastgraphrenderer_reset_camera: (a: number) => void;
+  readonly fastgraphrenderer_get_max_nodes: (a: number) => number;
+  readonly fastgraphrenderer_get_max_edges: (a: number) => number;
+  readonly fastgraphrenderer_get_current_node_count: (a: number) => number;
+  readonly fastgraphrenderer_get_current_edge_count: (a: number) => number;
   readonly __wbindgen_exn_store: (a: number) => void;
   readonly __externref_table_alloc: () => number;
   readonly __wbindgen_export_2: WebAssembly.Table;
@@ -34,7 +58,7 @@ export interface InitOutput {
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_export_6: WebAssembly.Table;
-  readonly closure748_externref_shim: (a: number, b: number, c: any) => void;
+  readonly closure749_externref_shim: (a: number, b: number, c: any) => void;
   readonly closure2182_externref_shim: (a: number, b: number, c: any, d: any) => void;
   readonly __wbindgen_start: () => void;
 }
