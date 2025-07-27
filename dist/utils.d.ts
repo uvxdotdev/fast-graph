@@ -117,9 +117,9 @@ export declare function calculateSpringForce(node1: GraphNode, node2: GraphNode,
 /**
  * Applies spring forces to all nodes based on edges
  */
-export declare function applySpringForces(nodes: GraphNode[], edges: GraphEdge[], restLength?: number, springConstant?: number): GraphNode[];
+export declare function applySpringForces(nodes: GraphNode[], edges: GraphEdge[], restLength?: number, springConstant?: number, draggedNodeIndex?: number | null): GraphNode[];
 /**
  * Updates all nodes in a graph with physics simulation including spring forces
  */
-export declare function updateGraphPhysics(nodes: GraphNode[], edges: GraphEdge[], deltaTime: number, dampingFactor?: number, springConstant?: number, restLength?: number): GraphNode[];
+export declare function updateGraphPhysics(nodes: GraphNode[], edges: GraphEdge[], deltaTime: number, dampingFactor?: number, springConstant?: number, restLength?: number, draggedNodeIndex?: number | null): GraphNode[];
 //# sourceMappingURL=utils.d.ts.map

@@ -99,6 +99,11 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
     const [animatedNodes, setAnimatedNodes] = useState([]);
     const lastFrameTimeRef = useRef(0);
     const physicsAnimationRef = useRef(null);
+    // FPS tracking state
+    const [fps, setFps] = useState(0);
+    const frameCountRef = useRef(0);
+    const fpsLastTimeRef = useRef(0);
+    const fpsUpdateIntervalRef = useRef(500); // Update FPS every 500ms
     // Camera state
     const cameraRef = useRef({ x: 0, y: 0, zoom: 1 });
     const isDraggingRef = useRef(false);
@@ -107,11 +112,64 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
     const [isPanMode, setIsPanMode] = useState(false);
     const [isShiftPressed, setIsShiftPressed] = useState(false);
     const [canvasFocused, setCanvasFocused] = useState(false);
+    // Node dragging state
+    const [draggedNodeIndex, setDraggedNodeIndex] = useState(null);
+    const draggedNodeIndexRef = useRef(null);
+    const isDraggingNodeRef = useRef(false);
+    const dragStartPosRef = useRef(null);
+    // Node hover state
+    const [hoveredNodeIndex, setHoveredNodeIndex] = useState(null);
     const componentId = useRef(`fast-graph-${Math.random().toString(36).substr(2, 9)}-${Date.now()}`);
     const initialColorsRef = useRef({ color1, color2 });
     const mountedRef = useRef(true);
     const lastSizeRef = useRef({ width: 0, height: 0 });
-    console.log('FastGraph render:', { isActive, isInitialized, isInitializing, error, canvas: !!canvas, nodeCount: nodes.length, edgeCount: edges.length, camera: cameraRef.current });
+    // Utility functions for node dragging
+    const screenToWorld = useCallback((screenX, screenY) => {
+        if (!canvas)
+            return { worldX: 0, worldY: 0 };
+        const rect = canvas.getBoundingClientRect();
+        const canvasX = screenX - rect.left;
+        const canvasY = screenY - rect.top;
+        // Apply the inverse of the camera transform used in the shader
+        // The shader applies: (pixel_pos - camera_position) * camera_zoom
+        // So the inverse is: canvas_pixel_pos / camera_zoom + camera_position
+        const originalPixelX = canvasX / cameraRef.current.zoom + cameraRef.current.x;
+        const originalPixelY = canvasY / cameraRef.current.zoom + cameraRef.current.y;
+        // Convert to normalized coordinates (0-1)
+        const worldX = originalPixelX / canvas.clientWidth;
+        const worldY = originalPixelY / canvas.clientHeight;
+        return { worldX, worldY };
+    }, [canvas]);
+    const getNodeUnderMouse = useCallback((worldX, worldY) => {
+        if (!canvas)
+            return -1;
+        let closestNode = -1;
+        let closestDistance = Infinity;
+        // Search backwards to prioritize nodes drawn on top
+        for (let i = animatedNodes.length - 1; i >= 0; i--) {
+            const node = animatedNodes[i];
+            const dx = worldX - node.x;
+            const dy = worldY - node.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            // Convert pixel size to normalized coordinates
+            const pixelSize = node.size || 20; // Default size in pixels
+            const normalizedRadiusX = (pixelSize * 0.5) / canvas.clientWidth;
+            const normalizedRadiusY = (pixelSize * 0.5) / canvas.clientHeight;
+            // Use average of x and y radius for circular hit detection
+            const normalizedRadius = (normalizedRadiusX + normalizedRadiusY) * 0.5;
+            // Add a minimum hit radius for usability
+            const minHitRadius = 0.01;
+            const hitRadius = Math.max(normalizedRadius, minHitRadius);
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestNode = i;
+            }
+            if (distance <= hitRadius) {
+                return i;
+            }
+        }
+        return -1;
+    }, [animatedNodes, canvas]);
     // Callback ref that triggers when canvas is actually mounted
     const canvasRef = useCallback((canvasElement) => {
         console.log('Canvas ref callback:', !!canvasElement);
@@ -121,6 +179,16 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
     useEffect(() => {
         initialColorsRef.current = { color1, color2 };
     }, [color1, color2]);
+    // One-time debug log for sample node positions
+    useEffect(() => {
+        if (animatedNodes.length > 0) {
+            console.log('📍 Sample node positions:', animatedNodes.slice(0, 3).map((node, i) => ({
+                index: i,
+                pos: { x: node.x, y: node.y },
+                size: node.size
+            })));
+        }
+    }, [animatedNodes.length > 0]);
     // Determine if we're in graph mode or gradient mode
     useEffect(() => {
         setIsGraphMode(nodes.length > 0);
@@ -150,15 +218,26 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                 if (!hasVelocity)
                     return prevNodes;
                 // Try GPU acceleration if enabled and available
-                if (useGPUAcceleration && rendererRef.current && typeof rendererRef.current.calculate_forces === 'function') {
+                if (useGPUAcceleration && rendererRef.current && typeof rendererRef.current.integrate_physics === 'function') {
                     try {
-                        rendererRef.current.calculate_forces(0.001, 0.3); // repulsion_strength, repulsion_radius
+                        // For now, skip GPU physics when dragging to avoid conflicts
+                        if (draggedNodeIndexRef.current !== null && draggedNodeIndexRef.current !== undefined) {
+                            // Fall through to CPU physics
+                        }
+                        else {
+                            rendererRef.current.integrate_physics(deltaTime * 0.01, // Convert to appropriate time scale
+                            dampingFactor, springConstant, restLength, 0.001, // repulsion_strength
+                            0.3 // repulsion_radius
+                            );
+                            return prevNodes; // Skip CPU physics if GPU succeeded
+                        }
                     }
                     catch (err) {
-                        console.warn('GPU acceleration failed, falling back to CPU:', err);
+                        console.warn('GPU acceleration failed, falling back to CPU physics:', err);
                     }
                 }
-                return updateGraphPhysics(prevNodes, edges, deltaTime, dampingFactor, springConstant, restLength);
+                const currentDraggedIndex = draggedNodeIndexRef.current;
+                return updateGraphPhysics(prevNodes, edges, deltaTime, dampingFactor, springConstant, restLength, currentDraggedIndex);
             });
             physicsAnimationRef.current = requestAnimationFrame(animate);
         };
@@ -233,7 +312,6 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                 // Send data to Rust renderer
                 rendererRef.current.set_nodes(new Float32Array(nodeData));
                 rendererRef.current.set_edges(new Float32Array(edgeData));
-                console.log('Updated graph data:', { nodeCount: animatedNodes.length, edgeCount: edges.length });
             }
             catch (err) {
                 console.error('Failed to update graph data:', err);
@@ -283,36 +361,88 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
     const handleMouseDown = useCallback((e) => {
         if (!canvas)
             return;
-        // Only allow panning if pan mode is active or shift is pressed
+        // Try node dragging first (only when not in pan mode)
+        if (!isPanMode && !isShiftPressed) {
+            const { worldX, worldY } = screenToWorld(e.clientX, e.clientY);
+            const nodeIndex = getNodeUnderMouse(worldX, worldY);
+            if (nodeIndex >= 0) {
+                setDraggedNodeIndex(nodeIndex);
+                draggedNodeIndexRef.current = nodeIndex;
+                isDraggingNodeRef.current = true;
+                dragStartPosRef.current = { x: worldX, y: worldY };
+                return; // Don't start camera panning
+            }
+        }
+        // Fall back to camera panning if in pan mode or shift pressed
         if (isPanMode || isShiftPressed) {
             isDraggingRef.current = true;
             lastMousePosRef.current = { x: e.clientX, y: e.clientY };
         }
-    }, [canvas, isPanMode, isShiftPressed]);
+    }, [canvas, isPanMode, isShiftPressed, screenToWorld, getNodeUnderMouse]);
     const handleMouseMove = useCallback((e) => {
-        if (!isDraggingRef.current || !canvas || !rendererRef.current)
+        if (!canvas)
             return;
-        // Only pan if pan mode is active or shift is pressed
-        if (!(isPanMode || isShiftPressed))
+        // Handle node dragging
+        if (isDraggingNodeRef.current && draggedNodeIndex !== null) {
+            const { worldX, worldY } = screenToWorld(e.clientX, e.clientY);
+            // Update the dragged node's position directly
+            setAnimatedNodes(prevNodes => {
+                const updatedNodes = [...prevNodes];
+                if (draggedNodeIndex < updatedNodes.length) {
+                    const oldNode = updatedNodes[draggedNodeIndex];
+                    updatedNodes[draggedNodeIndex] = {
+                        ...oldNode,
+                        x: worldX,
+                        y: worldY,
+                        vx: 0, // Reset velocity to prevent jitter
+                        vy: 0
+                    };
+                }
+                return updatedNodes;
+            });
             return;
-        const deltaX = e.clientX - lastMousePosRef.current.x;
-        const deltaY = e.clientY - lastMousePosRef.current.y;
-        // Convert screen delta to world delta (accounting for zoom and device pixel ratio)
-        const pixelRatio = window.devicePixelRatio || 1;
-        const worldDeltaX = (deltaX * pixelRatio) / cameraRef.current.zoom;
-        const worldDeltaY = (deltaY * pixelRatio) / cameraRef.current.zoom;
-        cameraRef.current.x -= worldDeltaX;
-        cameraRef.current.y -= worldDeltaY;
-        lastMousePosRef.current = { x: e.clientX, y: e.clientY };
-        try {
-            rendererRef.current.set_camera_position(cameraRef.current.x, cameraRef.current.y);
         }
-        catch (error) {
-            console.error('Error updating camera position:', error);
+        // Handle camera panning
+        if (isDraggingRef.current && rendererRef.current) {
+            // Only pan if pan mode is active or shift is pressed
+            if (isPanMode || isShiftPressed) {
+                const deltaX = e.clientX - lastMousePosRef.current.x;
+                const deltaY = e.clientY - lastMousePosRef.current.y;
+                // Convert screen delta to world delta (accounting for zoom and device pixel ratio)
+                const pixelRatio = window.devicePixelRatio || 1;
+                const worldDeltaX = (deltaX * pixelRatio) / cameraRef.current.zoom;
+                const worldDeltaY = (deltaY * pixelRatio) / cameraRef.current.zoom;
+                cameraRef.current.x -= worldDeltaX;
+                cameraRef.current.y -= worldDeltaY;
+                lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+                try {
+                    rendererRef.current.set_camera_position(cameraRef.current.x, cameraRef.current.y);
+                }
+                catch (error) {
+                    console.error('Error updating camera position:', error);
+                }
+            }
+            return;
         }
-    }, [canvas, isPanMode, isShiftPressed]);
+        // Handle node hover detection (when not dragging anything)
+        if (!isPanMode && !isShiftPressed) {
+            const { worldX, worldY } = screenToWorld(e.clientX, e.clientY);
+            const nodeIndex = getNodeUnderMouse(worldX, worldY);
+            setHoveredNodeIndex(nodeIndex);
+        }
+        else {
+            setHoveredNodeIndex(null);
+        }
+    }, [canvas, isPanMode, isShiftPressed, screenToWorld, getNodeUnderMouse, draggedNodeIndex]);
     const handleMouseUp = useCallback(() => {
         isDraggingRef.current = false;
+        // End node dragging
+        if (isDraggingNodeRef.current) {
+            isDraggingNodeRef.current = false;
+            setDraggedNodeIndex(null);
+            draggedNodeIndexRef.current = null;
+            dragStartPosRef.current = null;
+        }
     }, []);
     const handleZoomIn = useCallback(() => {
         if (!rendererRef.current)
@@ -402,6 +532,18 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
         if (startTimeRef.current === null) {
             startTimeRef.current = timestamp;
         }
+        // Track FPS
+        frameCountRef.current++;
+        if (fpsLastTimeRef.current === 0) {
+            fpsLastTimeRef.current = timestamp;
+        }
+        const timeSinceLastFpsUpdate = timestamp - fpsLastTimeRef.current;
+        if (timeSinceLastFpsUpdate >= fpsUpdateIntervalRef.current) {
+            const currentFps = Math.round((frameCountRef.current * 1000) / timeSinceLastFpsUpdate);
+            setFps(currentFps);
+            frameCountRef.current = 0;
+            fpsLastTimeRef.current = timestamp;
+        }
         const elapsed = (timestamp - startTimeRef.current) / 1000.0;
         try {
             if (rendererRef.current && typeof rendererRef.current.render === 'function') {
@@ -413,11 +555,7 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
         }
         catch (err) {
             console.error('Render error:', err);
-            setError(err instanceof Error ? err.message : 'Render error');
-            if (animationIdRef.current) {
-                cancelAnimationFrame(animationIdRef.current);
-                animationIdRef.current = null;
-            }
+            setError(`Render error: ${err}`);
         }
     }, [isInitialized, error]);
     // Handle canvas resize
@@ -648,7 +786,10 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
     return (React.createElement("div", { ref: containerRef, style: containerStyle },
         React.createElement("canvas", { ref: canvasRef, className: className, style: {
                 ...canvasStyle,
-                cursor: (isPanMode || isShiftPressed) ? (isDraggingRef.current ? 'grabbing' : 'grab') : 'default',
+                cursor: isDraggingNodeRef.current ? 'grabbing' :
+                    (isPanMode || isShiftPressed) ? (isDraggingRef.current ? 'grabbing' : 'grab') :
+                        hoveredNodeIndex !== null ? 'pointer' :
+                            'default',
                 outline: canvasFocused ? '2px solid rgba(0, 150, 255, 0.5)' : 'none',
                 outlineOffset: '2px'
             }, tabIndex: 0, onMouseDown: handleMouseDown, onMouseMove: handleMouseMove, onMouseUp: handleMouseUp, onMouseLeave: handleMouseUp, onTouchStart: handleTouchStart, onTouchMove: handleTouchMove, onTouchEnd: handleTouchEnd, onFocus: () => setCanvasFocused(true), onBlur: () => setCanvasFocused(false) }),
@@ -732,9 +873,7 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                     outline: isShiftPressed ? '2px solid rgba(255, 193, 7, 0.8)' : 'none'
                 }, title: isShiftPressed ? "Pan Mode: SHIFT HELD (Click to toggle manual mode)" :
                     isPanMode ? "Pan Mode: ON (Click to disable)" :
-                        "Pan Mode: OFF (Click to enable)" },
-                "\uD83D\uDDB1\uFE0F ",
-                (isPanMode || isShiftPressed) ? 'PAN ON' : 'PAN OFF'))),
+                        "Pan Mode: OFF (Click to enable)" }, "\uD83D\uDDB1\uFE0F PAN"))),
         isGraphMode && isInitialized && !error && (React.createElement("div", { style: {
                 position: 'absolute',
                 top: '10px',
@@ -757,6 +896,9 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
             React.createElement("div", { style: { marginBottom: '4px' } },
                 React.createElement("span", { style: { color: '#2196F3' } }, "PAN button"),
                 " toggles manual mode"),
+            React.createElement("div", { style: { marginBottom: '4px' } },
+                React.createElement("span", { style: { color: '#4CAF50' } }, "Drag nodes"),
+                " when not panning"),
             React.createElement("div", { style: { marginBottom: '4px' } },
                 React.createElement("span", { style: { color: '#FF9800' } }, "Focus canvas"),
                 " = no page scroll"),
@@ -854,6 +996,22 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                 nodes.length,
                 " nodes and ",
                 edges.length,
-                " edges")))));
+                " edges"))),
+        isInitialized && !error && (React.createElement("div", { style: {
+                position: 'absolute',
+                bottom: '8px',
+                left: '8px',
+                padding: '4px 8px',
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                color: '#fff',
+                fontSize: '12px',
+                fontFamily: 'monospace',
+                borderRadius: '4px',
+                zIndex: 5,
+                userSelect: 'none',
+                pointerEvents: 'none'
+            } },
+            fps,
+            " FPS"))));
 };
 export default FastGraph;

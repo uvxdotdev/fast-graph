@@ -443,7 +443,8 @@ export function applySpringForces(
   nodes: GraphNode[], 
   edges: GraphEdge[], 
   restLength: number = 0.1, 
-  springConstant: number = 0.01
+  springConstant: number = 0.01,
+  draggedNodeIndex?: number | null
 ): GraphNode[] {
   // Create a map for quick node lookup
   const nodeMap = new Map(nodes.map(node => [node.id, node]));
@@ -451,6 +452,11 @@ export function applySpringForces(
   // Initialize force accumulator for each node
   const forces = new Map(nodes.map(node => [node.id, { fx: 0, fy: 0 }]));
   
+  // Get dragged node ID if dragging
+  const draggedNodeId = (draggedNodeIndex !== null && draggedNodeIndex !== undefined && draggedNodeIndex < nodes.length) 
+    ? nodes[draggedNodeIndex].id 
+    : null;
+
   // Calculate spring forces for each edge
   for (const edge of edges) {
     const sourceNode = nodeMap.get(edge.source);
@@ -459,20 +465,29 @@ export function applySpringForces(
     if (sourceNode && targetNode) {
       const springForce = calculateSpringForce(sourceNode, targetNode, restLength, springConstant);
       
-      // Apply force to source node (toward target)
-      const sourceForce = forces.get(edge.source)!;
-      sourceForce.fx += springForce.fx;
-      sourceForce.fy += springForce.fy;
+      // Apply force to source node (toward target) - skip if source is dragged
+      if (edge.source !== draggedNodeId) {
+        const sourceForce = forces.get(edge.source)!;
+        sourceForce.fx += springForce.fx;
+        sourceForce.fy += springForce.fy;
+      }
       
-      // Apply equal and opposite force to target node (toward source)
-      const targetForce = forces.get(edge.target)!;
-      targetForce.fx -= springForce.fx;
-      targetForce.fy -= springForce.fy;
+      // Apply equal and opposite force to target node (toward source) - skip if target is dragged
+      if (edge.target !== draggedNodeId) {
+        const targetForce = forces.get(edge.target)!;
+        targetForce.fx -= springForce.fx;
+        targetForce.fy -= springForce.fy;
+      }
     }
   }
   
-  // Apply forces to node velocities
-  return nodes.map(node => {
+  // Apply forces to node velocities (skip dragged node)
+  return nodes.map((node, index) => {
+    // Skip applying forces to dragged node
+    if (draggedNodeIndex !== null && draggedNodeIndex !== undefined && index === draggedNodeIndex) {
+      return node;
+    }
+    
     const force = forces.get(node.id);
     if (!force) return node;
     
@@ -496,17 +511,34 @@ export function updateGraphPhysics(
   deltaTime: number, 
   dampingFactor: number = 0.99,
   springConstant: number = 0.01,
-  restLength: number = 0.1
+  restLength: number = 0.1,
+  draggedNodeIndex?: number | null
 ): GraphNode[] {
+
   // Apply spring forces
-  let updatedNodes = applySpringForces(nodes, edges, restLength, springConstant);
+  let updatedNodes = applySpringForces(nodes, edges, restLength, springConstant, draggedNodeIndex);
+
   
-  // Update positions and apply damping
-  updatedNodes = updatedNodes.map(node => {
+
+
+  // Update positions and apply damping (skip dragged node)
+  updatedNodes = updatedNodes.map((node, index) => {
+    // Skip physics updates for dragged node - keep its current position
+    if (draggedNodeIndex !== null && draggedNodeIndex !== undefined && index === draggedNodeIndex) {
+
+      return {
+        ...node,
+        vx: 0, // Reset velocity to prevent interference
+        vy: 0
+      };
+    }
+    
     let updatedNode = updateNodePosition(node, deltaTime);
     updatedNode = applyDamping(updatedNode, dampingFactor);
     return updatedNode;
   });
+
+
   
   return updatedNodes;
 }

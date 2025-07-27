@@ -51,7 +51,7 @@ struct PhysicsParams {
 
 struct GridCell {
     node_indices: array<u32, 32>,  // Max 32 nodes per cell
-    node_count: u32,
+    node_count: atomic<u32>,
 }
 
 @group(0) @binding(0) var<storage, read_write> nodes: array<NodeData>;
@@ -100,7 +100,7 @@ fn clear_grid(@builtin(global_invocation_id) global_id: vec3<u32>) {
         return;
     }
     
-    grid[grid_index].node_count = 0u;
+    atomicStore(&grid[grid_index].node_count, 0u);
 }
 
 @compute @workgroup_size(64) 
@@ -149,11 +149,10 @@ fn calculate_repulsion(@builtin(global_invocation_id) global_id: vec3<u32>) {
                 
                 let check_grid_pos = vec2<u32>(u32(check_x), u32(check_y));
                 let check_grid_index = get_grid_index(check_grid_pos);
-                let cell = grid[check_grid_index];
                 
                 // Check all nodes in this cell
-                for (var i = 0u; i < cell.node_count && i < 32u; i++) {
-                    let other_node_index = cell.node_indices[i];
+                for (var i = 0u; i < atomicLoad(&grid[check_grid_index].node_count) && i < 32u; i++) {
+                    let other_node_index = grid[check_grid_index].node_indices[i];
                     
                     if (other_node_index != node_index) {
                         let other_node = nodes[other_node_index];
@@ -293,9 +292,9 @@ impl Renderer {
             )));
         }
 
-        // Create WGPU instance
+        // Create WGPU instance - allow WebGPU with WebGL fallback
         let instance = Instance::new(&InstanceDescriptor {
-            backends: Backends::GL,
+            backends: Backends::BROWSER_WEBGPU | Backends::GL,
             flags: Default::default(),
             ..Default::default()
         });
@@ -305,43 +304,65 @@ impl Renderer {
             .create_surface(wgpu::SurfaceTarget::Canvas(canvas.clone()))
             .map_err(|e| JsValue::from_str(&format!("Failed to create surface: {:?}", e)))?;
 
-        // Get adapter
-        let adapter = instance
+        // Try to get adapter without surface compatibility first (better for compute shaders)
+        let adapter = match instance
             .request_adapter(&RequestAdapterOptions {
-                power_preference: PowerPreference::default(),
-                compatible_surface: Some(&surface),
+                power_preference: PowerPreference::HighPerformance,
+                compatible_surface: None,
                 force_fallback_adapter: false,
             })
             .await
-            .map_err(|e| JsValue::from_str(&format!("Failed to find suitable graphics adapter: {:?}", e)))?;
+        {
+            Ok(adapter) => {
+                log!("Got adapter without surface compatibility - checking compute capabilities");
+                // Check if this adapter has good compute shader support
+                if adapter.limits().max_storage_buffers_per_shader_stage >= 3 {
+                    log!("Adapter has excellent compute shader support ({} storage buffers per stage)", adapter.limits().max_storage_buffers_per_shader_stage);
+                    adapter
+                } else {
+                    log!("Adapter has limited compute support, trying surface-compatible adapter");
+                    instance
+                        .request_adapter(&RequestAdapterOptions {
+                            power_preference: PowerPreference::default(),
+                            compatible_surface: Some(&surface),
+                            force_fallback_adapter: false,
+                        })
+                        .await
+                        .map_err(|e| JsValue::from_str(&format!("Failed to request surface-compatible adapter: {:?}", e)))?
+                }
+            }
+            Err(_) => {
+                log!("No adapter available without surface compatibility, using surface-compatible adapter");
+                instance
+                    .request_adapter(&RequestAdapterOptions {
+                        power_preference: PowerPreference::default(),
+                        compatible_surface: Some(&surface),
+                        force_fallback_adapter: false,
+                    })
+                    .await
+                    .map_err(|e| JsValue::from_str(&format!("Failed to request adapter: {:?}", e)))?
+            }
+        };
 
-        // Get device and queue with compute shader support
-        // First try with conservative compute limits
-        let mut limits = Limits::downlevel_webgl2_defaults();
-        limits.max_storage_buffers_per_shader_stage = 2; // Minimal for our compute shader needs
-        limits.max_compute_workgroup_storage_size = 1024; // Conservative value
-        limits.max_compute_invocations_per_workgroup = 64; // Conservative value
-        limits.max_compute_workgroup_size_x = 64;
-        limits.max_compute_workgroup_size_y = 1;
-        limits.max_compute_workgroup_size_z = 1;
-        limits.max_compute_workgroups_per_dimension = 1024;
-        
+        // Try to get device with better limits first (for compute shaders), fall back to WebGL2 limits
         let (device, queue) = match adapter
             .request_device(
                 &DeviceDescriptor {
                     label: None,
                     required_features: Features::empty(),
-                    required_limits: limits.clone(),
+                    required_limits: Limits::downlevel_defaults(),
                     memory_hints: Default::default(),
                     trace: Default::default(),
                 },
             )
             .await
         {
-            Ok(device_queue) => device_queue,
+            Ok(device_queue) => {
+                log!("Successfully created device with downlevel_defaults limits");
+                device_queue
+            }
             Err(_) => {
-                // Fallback: try without compute shader support
-                log!("Failed to create device with compute support, falling back to basic limits");
+                log!("Failed with downlevel_defaults, falling back to webgl2_defaults");
                 adapter
                     .request_device(
                         &DeviceDescriptor {
@@ -353,9 +374,15 @@ impl Renderer {
                         },
                     )
                     .await
-                    .map_err(|e| JsValue::from_str(&format!("Failed to create device: {:?}", e)))?
+                    .map_err(|e| JsValue::from_str(&format!("Failed to create device with fallback limits: {:?}", e)))?
             }
         };
+        
+        // Check actual device capabilities
+        let device_limits = device.limits();
+        log!("Device limits - storage buffers per stage: {}", device_limits.max_storage_buffers_per_shader_stage);
+        log!("Device limits - compute workgroup storage: {}", device_limits.max_compute_workgroup_storage_size);
+        log!("Device limits - compute invocations per workgroup: {}", device_limits.max_compute_invocations_per_workgroup);
 
         // Configure surface
         let config = SurfaceConfiguration {
@@ -422,8 +449,11 @@ impl Renderer {
         let edge_pipeline = self.create_edge_pipeline(&device, config.format, &uniform_bind_group_layout);
         
         // Conditionally create compute pipeline for physics (only if device supports storage buffers)
-        let (compute_pipelines, compute_bind_group, node_physics_buffer, edge_physics_buffer, physics_params_buffer, grid_buffer) = 
-            if device.limits().max_storage_buffers_per_shader_stage >= 3 {
+        let (compute_pipelines, compute_bind_group, node_physics_buffer, edge_physics_buffer, physics_params_buffer, grid_buffer) = {
+            let device_storage_buffers = device.limits().max_storage_buffers_per_shader_stage;
+            log!("Checking compute shader support: device has {} storage buffers per stage, need >= 3", device_storage_buffers);
+            
+            if device_storage_buffers >= 3 {
                 log!("Device supports compute shaders, enabling GPU physics");
                 let ((clear_grid_pipeline, assign_grid_pipeline, repulsion_pipeline, integration_pipeline), compute_bind_group_layout) = self.create_compute_pipeline(&device);
                 
@@ -484,9 +514,10 @@ impl Renderer {
 
                 (Some((clear_grid_pipeline, assign_grid_pipeline, repulsion_pipeline, integration_pipeline)), Some(compute_bind_group), Some(node_physics_buffer), Some(edge_physics_buffer), Some(physics_params_buffer), Some(grid_buffer))
             } else {
-                log!("Device does not support compute shaders, physics will be CPU-only");
+                log!("Device does not support compute shaders (only {} storage buffers per stage), physics will be CPU-only", device_storage_buffers);
                 (None, None, None, None, None, None)
-            };
+            }
+        };
         
         // Create node vertex buffer (quad vertices)
         let quad_vertices: &[f32] = &[

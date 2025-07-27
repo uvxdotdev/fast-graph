@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebGPU Limits Test</title>
+</head>
+<body>
+    <h1>WebGPU Device Limits Test</h1>
+    <div id="results"></div>
+
+    <script>
+        const results = document.getElementById('results');
+
+        function log(message) {
+            console.log(message);
+            results.innerHTML += message + '<br>';
+        }
+
+        async function testWebGPULimits() {
+            if (!navigator.gpu) {
+                log('WebGPU not supported');
+                return;
+            }
+
+            log('=== WebGPU Limits Test ===');
+
+            // Test 1: Default limits without surface
+            try {
+                log('\n--- Test 1: Default limits (no surface) ---');
+                const adapter1 = await navigator.gpu.requestAdapter();
+                if (!adapter1) {
+                    log('Failed to get adapter');
+                    return;
+                }
+
+                const device1 = await adapter1.requestDevice({
+                    requiredLimits: {}
+                });
+
+                const limits1 = device1.limits;
+                log(`Max storage buffers per stage: ${limits1.maxStorageBuffersPerShaderStage}`);
+                log(`Max compute workgroup storage: ${limits1.maxComputeWorkgroupStorageSize}`);
+                log(`Max compute invocations per workgroup: ${limits1.maxComputeInvocationsPerWorkgroup}`);
+                log(`Max buffer size: ${limits1.maxBufferSize}`);
+                log(`Max storage buffer binding size: ${limits1.maxStorageBufferBindingSize}`);
+
+                device1.destroy();
+            } catch (error) {
+                log(`Test 1 failed: ${error}`);
+            }
+
+            // Test 2: With canvas surface compatibility
+            try {
+                log('\n--- Test 2: With canvas surface compatibility ---');
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('webgpu');
+                
+                const adapter2 = await navigator.gpu.requestAdapter({
+                    powerPreference: 'high-performance'
+                });
+                
+                if (!adapter2) {
+                    log('Failed to get adapter');
+                    return;
+                }
+
+                const device2 = await adapter2.requestDevice({
+                    requiredLimits: {}
+                });
+
+                const surface = context.configureSurface({
+                    device: device2,
+                    format: 'bgra8unorm'
+                });
+
+                const limits2 = device2.limits;
+                log(`Max storage buffers per stage: ${limits2.maxStorageBuffersPerShaderStage}`);
+                log(`Max compute workgroup storage: ${limits2.maxComputeWorkgroupStorageSize}`);
+                log(`Max compute invocations per workgroup: ${limits2.maxComputeInvocationsPerWorkgroup}`);
+                log(`Max buffer size: ${limits2.maxBufferSize}`);
+                log(`Max storage buffer binding size: ${limits2.maxStorageBufferBindingSize}`);
+
+                device2.destroy();
+            } catch (error) {
+                log(`Test 2 failed: ${error}`);
+            }
+
+            // Test 3: Request high limits explicitly
+            try {
+                log('\n--- Test 3: Request high limits explicitly ---');
+                const adapter3 = await navigator.gpu.requestAdapter({
+                    powerPreference: 'high-performance'
+                });
+                
+                if (!adapter3) {
+                    log('Failed to get adapter');
+                    return;
+                }
+
+                log('Adapter limits:');
+                const adapterLimits = adapter3.limits;
+                log(`Adapter max storage buffers per stage: ${adapterLimits.maxStorageBuffersPerShaderStage}`);
+                log(`Adapter max compute workgroup storage: ${adapterLimits.maxComputeWorkgroupStorageSize}`);
+                log(`Adapter max compute invocations per workgroup: ${adapterLimits.maxComputeInvocationsPerWorkgroup}`);
+
+                const device3 = await adapter3.requestDevice({
+                    requiredLimits: {
+                        maxStorageBuffersPerShaderStage: Math.min(10, adapterLimits.maxStorageBuffersPerShaderStage),
+                        maxComputeWorkgroupStorageSize: Math.min(32768, adapterLimits.maxComputeWorkgroupStorageSize),
+                        maxComputeInvocationsPerWorkgroup: Math.min(1024, adapterLimits.maxComputeInvocationsPerWorkgroup)
+                    }
+                });
+
+                const limits3 = device3.limits;
+                log('Device limits after requesting high limits:');
+                log(`Max storage buffers per stage: ${limits3.maxStorageBuffersPerShaderStage}`);
+                log(`Max compute workgroup storage: ${limits3.maxComputeWorkgroupStorageSize}`);
+                log(`Max compute invocations per workgroup: ${limits3.maxComputeInvocationsPerWorkgroup}`);
+                log(`Max buffer size: ${limits3.maxBufferSize}`);
+                log(`Max storage buffer binding size: ${limits3.maxStorageBufferBindingSize}`);
+
+                device3.destroy();
+            } catch (error) {
+                log(`Test 3 failed: ${error}`);
+            }
+
+            // Test 4: Simple compute shader test
+            try {
+                log('\n--- Test 4: Simple compute shader test ---');
+                const adapter4 = await navigator.gpu.requestAdapter({
+                    powerPreference: 'high-performance'
+                });
+                
+                if (!adapter4) {
+                    log('Failed to get adapter');
+                    return;
+                }
+
+                const device4 = await adapter4.requestDevice({
+                    requiredLimits: {
+                        maxStorageBuffersPerShaderStage: Math.min(4, adapter4.limits.maxStorageBuffersPerShaderStage)
+                    }
+                });
+
+                // Create a simple compute shader
+                const shaderCode = `
+                    @group(0) @binding(0) var<storage, read_write> data: array<f32>;
+                    
+                    @compute @workgroup_size(1)
+                    fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+                        data[global_id.x] = data[global_id.x] * 2.0;
+                    }
+                `;
+
+                const shaderModule = device4.createShaderModule({ code: shaderCode });
+                
+                const computePipeline = device4.createComputePipeline({
+                    layout: 'auto',
+                    compute: {
+                        module: shaderModule,
+                        entryPoint: 'main'
+                    }
+                });
+
+                // Create buffer
+                const inputData = new Float32Array([1, 2, 3, 4]);
+                const buffer = device4.createBuffer({
+                    size: inputData.byteLength,
+                    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+                    mappedAtCreation: true
+                });
+
+                new Float32Array(buffer.getMappedRange()).set(inputData);
+                buffer.unmap();
+
+                // Create staging buffer for reading results
+                const stagingBuffer = device4.createBuffer({
+                    size: inputData.byteLength,
+                    usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
+                });
+
+                // Create bind group
+                const bindGroup = device4.createBindGroup({
+                    layout: computePipeline.getBindGroupLayout(0),
+                    entries: [{
+                        binding: 0,
+                        resource: { buffer: buffer }
+                    }]
+                });
+
+                // Execute compute shader
+                const commandEncoder = device4.createCommandEncoder();
+                const computePass = commandEncoder.beginComputePass();
+                computePass.setPipeline(computePipeline);
+                computePass.setBindGroup(0, bindGroup);
+                computePass.dispatchWorkgroups(4);
+                computePass.end();
+
+                commandEncoder.copyBufferToBuffer(buffer, 0, stagingBuffer, 0, inputData.byteLength);
+                device4.queue.submit([commandEncoder.finish()]);
+
+                // Read results
+                await stagingBuffer.mapAsync(GPUMapMode.READ);
+                const resultData = new Float32Array(stagingBuffer.getMappedRange());
+                log(`Compute shader test successful! Results: [${Array.from(resultData).join(', ')}]`);
+                stagingBuffer.unmap();
+
+                device4.destroy();
+            } catch (error) {
+                log(`Test 4 failed: ${error}`);
+            }
+
+            log('\n=== Test Complete ===');
+        }
+
+        // Run tests when page loads
+        testWebGPULimits().catch(error => {
+            log(`Test suite failed: ${error}`);
+        });
+    </script>
+</body>
+</html>

@@ -2,7 +2,7 @@ use wasm_bindgen::prelude::*;
 use web_sys::{console, HtmlCanvasElement};
 
 mod renderer;
-use renderer::{Renderer, MAX_NODES, MAX_EDGES};
+use renderer::{Renderer, MAX_EDGES, MAX_NODES};
 
 // Struct to represent a node for WebGPU rendering with physics
 #[repr(C)]
@@ -10,16 +10,16 @@ use renderer::{Renderer, MAX_NODES, MAX_EDGES};
 pub struct NodeData {
     pub x: f32,
     pub y: f32,
-    pub vx: f32,     // velocity x
-    pub vy: f32,     // velocity y
-    pub fx: f32,     // force accumulator x
-    pub fy: f32,     // force accumulator y
+    pub vx: f32, // velocity x
+    pub vy: f32, // velocity y
+    pub fx: f32, // force accumulator x
+    pub fy: f32, // force accumulator y
     pub r: f32,
     pub g: f32,
     pub b: f32,
     pub a: f32,
     pub size: f32,
-    pub mass: f32,   // for physics calculations
+    pub mass: f32, // for physics calculations
 }
 
 // Struct to represent an edge for WebGPU rendering
@@ -82,13 +82,13 @@ impl FastGraphRenderer {
             log!("Renderer already initialized");
             return Ok(());
         }
-        
+
         log!("Initializing WebGPU renderer for canvas");
-        
+
         // Simple retry logic for WebGPU initialization
         let mut attempts = 0;
         let max_attempts = 2;
-        
+
         while attempts < max_attempts {
             match self.renderer.init(canvas).await {
                 Ok(_) => {
@@ -99,16 +99,17 @@ impl FastGraphRenderer {
                 Err(e) => {
                     attempts += 1;
                     log!("WebGPU initialization attempt {} failed: {:?}", attempts, e);
-                    
+
                     if attempts >= max_attempts {
                         return Err(JsValue::from_str(&format!(
-                            "Failed to initialize WebGPU: {:?}", e
+                            "Failed to initialize WebGPU: {:?}",
+                            e
                         )));
                     }
                 }
             }
         }
-        
+
         Err(JsValue::from_str("Failed to initialize WebGPU"))
     }
 
@@ -117,23 +118,31 @@ impl FastGraphRenderer {
         if !self.is_initialized {
             return;
         }
-        
+
         if self.is_rendering {
             return; // Skip frame if already rendering
         }
-        
+
         self.is_rendering = true;
-        
+
         // Perform render with error handling
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            self.renderer.render(time, &self.color1, &self.color2, &self.nodes, &self.edges, &self.camera_position, self.camera_zoom);
+            self.renderer.render(
+                time,
+                &self.color1,
+                &self.color2,
+                &self.nodes,
+                &self.edges,
+                &self.camera_position,
+                self.camera_zoom,
+            );
         })) {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(_) => {
                 log!("Render operation failed, skipping frame");
             }
         }
-        
+
         self.is_rendering = false;
     }
 
@@ -142,13 +151,22 @@ impl FastGraphRenderer {
         if !self.is_initialized || self.is_rendering {
             return;
         }
-        
+
         self.renderer.resize(width, height);
     }
 
     #[wasm_bindgen]
-    pub fn set_colors(&mut self, color1_r: f32, color1_g: f32, color1_b: f32, color1_a: f32,
-                      color2_r: f32, color2_g: f32, color2_b: f32, color2_a: f32) {
+    pub fn set_colors(
+        &mut self,
+        color1_r: f32,
+        color1_g: f32,
+        color1_b: f32,
+        color1_a: f32,
+        color2_r: f32,
+        color2_g: f32,
+        color2_b: f32,
+        color2_a: f32,
+    ) {
         self.color1 = [color1_r, color1_g, color1_b, color1_a];
         self.color2 = [color2_r, color2_g, color2_b, color2_a];
     }
@@ -180,11 +198,11 @@ impl FastGraphRenderer {
     #[wasm_bindgen]
     pub fn set_nodes(&mut self, node_data: &[f32]) {
         self.nodes.clear();
-        
+
         // Each node has 7 floats: x, y, r, g, b, a, size
         let stride = 7;
         let node_count = node_data.len() / stride;
-        
+
         for i in 0..node_count {
             let base = i * stride;
             if base + stride <= node_data.len() {
@@ -204,18 +222,18 @@ impl FastGraphRenderer {
                 });
             }
         }
-        
-        log!("Updated nodes: {} nodes", self.nodes.len());
+
+        // log!("Updated nodes: {} nodes", self.nodes.len());
     }
 
     #[wasm_bindgen]
     pub fn set_edges(&mut self, edge_data: &[f32]) {
         self.edges.clear();
-        
+
         // Each edge has 9 floats: x1, y1, x2, y2, r, g, b, a, width
         let stride = 9;
         let edge_count = edge_data.len() / stride;
-        
+
         for i in 0..edge_count {
             let base = i * stride;
             if base + stride <= edge_data.len() {
@@ -232,8 +250,8 @@ impl FastGraphRenderer {
                 });
             }
         }
-        
-        log!("Updated edges: {} edges", self.edges.len());
+
+        // log!("Updated edges: {} edges", self.edges.len());
     }
 
     #[wasm_bindgen]
@@ -288,26 +306,38 @@ impl FastGraphRenderer {
     }
 
     #[wasm_bindgen]
-    pub fn integrate_physics(&mut self, delta_time: f32, damping_factor: f32, spring_constant: f32, rest_length: f32, repulsion_strength: f32, repulsion_radius: f32) -> Result<(), JsValue> {
+    pub fn integrate_physics(
+        &mut self,
+        delta_time: f32,
+        damping_factor: f32,
+        spring_constant: f32,
+        rest_length: f32,
+        repulsion_strength: f32,
+        repulsion_radius: f32,
+    ) -> Result<(), JsValue> {
         if !self.is_initialized {
             return Err(JsValue::from_str("Renderer not initialized"));
         }
 
         // Convert current nodes to the right format for physics integration
-        let mut physics_nodes: Vec<NodeData> = self.nodes.iter().map(|node| NodeData {
-            x: node.x,
-            y: node.y,
-            vx: node.vx,
-            vy: node.vy,
-            fx: node.fx,
-            fy: node.fy,
-            r: node.r,
-            g: node.g,
-            b: node.b,
-            a: node.a,
-            size: node.size,
-            mass: node.mass,
-        }).collect();
+        let mut physics_nodes: Vec<NodeData> = self
+            .nodes
+            .iter()
+            .map(|node| NodeData {
+                x: node.x,
+                y: node.y,
+                vx: node.vx,
+                vy: node.vy,
+                fx: node.fx,
+                fy: node.fy,
+                r: node.r,
+                g: node.g,
+                b: node.b,
+                a: node.a,
+                size: node.size,
+                mass: node.mass,
+            })
+            .collect();
 
         // Prepare edge data for physics integration
         let physics_edges: Vec<EdgeData> = self.edges.clone();
@@ -321,7 +351,7 @@ impl FastGraphRenderer {
             spring_constant,
             rest_length,
             repulsion_strength,
-            repulsion_radius
+            repulsion_radius,
         )?;
 
         // Update internal nodes with GPU results
@@ -342,7 +372,7 @@ impl FastGraphRenderer {
 
 fn parse_hex_color(hex: &str) -> Option<[f32; 4]> {
     let hex = hex.trim_start_matches('#');
-    
+
     match hex.len() {
         6 => {
             // RGB format
@@ -351,12 +381,7 @@ fn parse_hex_color(hex: &str) -> Option<[f32; 4]> {
                 u8::from_str_radix(&hex[2..4], 16),
                 u8::from_str_radix(&hex[4..6], 16),
             ) {
-                Some([
-                    r as f32 / 255.0,
-                    g as f32 / 255.0,
-                    b as f32 / 255.0,
-                    1.0,
-                ])
+                Some([r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0])
             } else {
                 None
             }

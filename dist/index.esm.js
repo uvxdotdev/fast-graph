@@ -291,23 +291,31 @@ function calculateSpringForce(node1, node2, restLength = 0.1, springConstant = 0
   const fy = dy / distance * force;
   return { fx, fy };
 }
-function applySpringForces(nodes, edges, restLength = 0.1, springConstant = 0.01) {
+function applySpringForces(nodes, edges, restLength = 0.1, springConstant = 0.01, draggedNodeIndex) {
   const nodeMap = new Map(nodes.map((node) => [node.id, node]));
   const forces = new Map(nodes.map((node) => [node.id, { fx: 0, fy: 0 }]));
+  const draggedNodeId = draggedNodeIndex !== null && draggedNodeIndex !== undefined && draggedNodeIndex < nodes.length ? nodes[draggedNodeIndex].id : null;
   for (const edge of edges) {
     const sourceNode = nodeMap.get(edge.source);
     const targetNode = nodeMap.get(edge.target);
     if (sourceNode && targetNode) {
       const springForce = calculateSpringForce(sourceNode, targetNode, restLength, springConstant);
-      const sourceForce = forces.get(edge.source);
-      sourceForce.fx += springForce.fx;
-      sourceForce.fy += springForce.fy;
-      const targetForce = forces.get(edge.target);
-      targetForce.fx -= springForce.fx;
-      targetForce.fy -= springForce.fy;
+      if (edge.source !== draggedNodeId) {
+        const sourceForce = forces.get(edge.source);
+        sourceForce.fx += springForce.fx;
+        sourceForce.fy += springForce.fy;
+      }
+      if (edge.target !== draggedNodeId) {
+        const targetForce = forces.get(edge.target);
+        targetForce.fx -= springForce.fx;
+        targetForce.fy -= springForce.fy;
+      }
     }
   }
-  return nodes.map((node) => {
+  return nodes.map((node, index) => {
+    if (draggedNodeIndex !== null && draggedNodeIndex !== undefined && index === draggedNodeIndex) {
+      return node;
+    }
     const force = forces.get(node.id);
     if (!force)
       return node;
@@ -320,9 +328,16 @@ function applySpringForces(nodes, edges, restLength = 0.1, springConstant = 0.01
     };
   });
 }
-function updateGraphPhysics(nodes, edges, deltaTime, dampingFactor = 0.99, springConstant = 0.01, restLength = 0.1) {
-  let updatedNodes = applySpringForces(nodes, edges, restLength, springConstant);
-  updatedNodes = updatedNodes.map((node) => {
+function updateGraphPhysics(nodes, edges, deltaTime, dampingFactor = 0.99, springConstant = 0.01, restLength = 0.1, draggedNodeIndex) {
+  let updatedNodes = applySpringForces(nodes, edges, restLength, springConstant, draggedNodeIndex);
+  updatedNodes = updatedNodes.map((node, index) => {
+    if (draggedNodeIndex !== null && draggedNodeIndex !== undefined && index === draggedNodeIndex) {
+      return {
+        ...node,
+        vx: 0,
+        vy: 0
+      };
+    }
     let updatedNode = updateNodePosition(node, deltaTime);
     updatedNode = applyDamping(updatedNode, dampingFactor);
     return updatedNode;
@@ -427,17 +442,63 @@ var FastGraph = ({
   const [animatedNodes, setAnimatedNodes] = useState([]);
   const lastFrameTimeRef = useRef(0);
   const physicsAnimationRef = useRef(null);
+  const [fps, setFps] = useState(0);
+  const frameCountRef = useRef(0);
+  const fpsLastTimeRef = useRef(0);
+  const fpsUpdateIntervalRef = useRef(500);
   const cameraRef = useRef({ x: 0, y: 0, zoom: 1 });
   const isDraggingRef = useRef(false);
   const lastMousePosRef = useRef({ x: 0, y: 0 });
   const [isPanMode, setIsPanMode] = useState(false);
   const [isShiftPressed, setIsShiftPressed] = useState(false);
   const [canvasFocused, setCanvasFocused] = useState(false);
+  const [draggedNodeIndex, setDraggedNodeIndex] = useState(null);
+  const draggedNodeIndexRef = useRef(null);
+  const isDraggingNodeRef = useRef(false);
+  const dragStartPosRef = useRef(null);
+  const [hoveredNodeIndex, setHoveredNodeIndex] = useState(null);
   const componentId = useRef(`fast-graph-${Math.random().toString(36).substr(2, 9)}-${Date.now()}`);
   const initialColorsRef = useRef({ color1, color2 });
   const mountedRef = useRef(true);
   const lastSizeRef = useRef({ width: 0, height: 0 });
-  console.log("FastGraph render:", { isActive, isInitialized, isInitializing, error, canvas: !!canvas, nodeCount: nodes.length, edgeCount: edges.length, camera: cameraRef.current });
+  const screenToWorld = useCallback((screenX, screenY) => {
+    if (!canvas)
+      return { worldX: 0, worldY: 0 };
+    const rect = canvas.getBoundingClientRect();
+    const canvasX = screenX - rect.left;
+    const canvasY = screenY - rect.top;
+    const originalPixelX = canvasX / cameraRef.current.zoom + cameraRef.current.x;
+    const originalPixelY = canvasY / cameraRef.current.zoom + cameraRef.current.y;
+    const worldX = originalPixelX / canvas.clientWidth;
+    const worldY = originalPixelY / canvas.clientHeight;
+    return { worldX, worldY };
+  }, [canvas]);
+  const getNodeUnderMouse = useCallback((worldX, worldY) => {
+    if (!canvas)
+      return -1;
+    let closestNode = -1;
+    let closestDistance = Infinity;
+    for (let i = animatedNodes.length - 1;i >= 0; i--) {
+      const node = animatedNodes[i];
+      const dx = worldX - node.x;
+      const dy = worldY - node.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const pixelSize = node.size || 20;
+      const normalizedRadiusX = pixelSize * 0.5 / canvas.clientWidth;
+      const normalizedRadiusY = pixelSize * 0.5 / canvas.clientHeight;
+      const normalizedRadius = (normalizedRadiusX + normalizedRadiusY) * 0.5;
+      const minHitRadius = 0.01;
+      const hitRadius = Math.max(normalizedRadius, minHitRadius);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestNode = i;
+      }
+      if (distance <= hitRadius) {
+        return i;
+      }
+    }
+    return -1;
+  }, [animatedNodes, canvas]);
   const canvasRef = useCallback((canvasElement) => {
     console.log("Canvas ref callback:", !!canvasElement);
     setCanvas(canvasElement);
@@ -445,6 +506,15 @@ var FastGraph = ({
   useEffect(() => {
     initialColorsRef.current = { color1, color2 };
   }, [color1, color2]);
+  useEffect(() => {
+    if (animatedNodes.length > 0) {
+      console.log("\uD83D\uDCCD Sample node positions:", animatedNodes.slice(0, 3).map((node, i) => ({
+        index: i,
+        pos: { x: node.x, y: node.y },
+        size: node.size
+      })));
+    }
+  }, [animatedNodes.length > 0]);
   useEffect(() => {
     setIsGraphMode(nodes.length > 0);
   }, [nodes.length]);
@@ -468,14 +538,18 @@ var FastGraph = ({
         const hasVelocity = prevNodes.some((node) => node.vx && node.vx !== 0 || node.vy && node.vy !== 0);
         if (!hasVelocity)
           return prevNodes;
-        if (useGPUAcceleration && rendererRef.current && typeof rendererRef.current.calculate_forces === "function") {
+        if (useGPUAcceleration && rendererRef.current && typeof rendererRef.current.integrate_physics === "function") {
           try {
-            rendererRef.current.calculate_forces(0.001, 0.3);
+            if (draggedNodeIndexRef.current !== null && draggedNodeIndexRef.current !== undefined) {} else {
+              rendererRef.current.integrate_physics(deltaTime * 0.01, dampingFactor, springConstant, restLength, 0.001, 0.3);
+              return prevNodes;
+            }
           } catch (err) {
-            console.warn("GPU acceleration failed, falling back to CPU:", err);
+            console.warn("GPU acceleration failed, falling back to CPU physics:", err);
           }
         }
-        return updateGraphPhysics(prevNodes, edges, deltaTime, dampingFactor, springConstant, restLength);
+        const currentDraggedIndex = draggedNodeIndexRef.current;
+        return updateGraphPhysics(prevNodes, edges, deltaTime, dampingFactor, springConstant, restLength, currentDraggedIndex);
       });
       physicsAnimationRef.current = requestAnimationFrame(animate2);
     };
@@ -528,7 +602,6 @@ var FastGraph = ({
         }
         rendererRef.current.set_nodes(new Float32Array(nodeData));
         rendererRef.current.set_edges(new Float32Array(edgeData));
-        console.log("Updated graph data:", { nodeCount: animatedNodes.length, edgeCount: edges.length });
       } catch (err) {
         console.error("Failed to update graph data:", err);
       }
@@ -573,32 +646,77 @@ var FastGraph = ({
   const handleMouseDown = useCallback((e) => {
     if (!canvas)
       return;
+    if (!isPanMode && !isShiftPressed) {
+      const { worldX, worldY } = screenToWorld(e.clientX, e.clientY);
+      const nodeIndex = getNodeUnderMouse(worldX, worldY);
+      if (nodeIndex >= 0) {
+        setDraggedNodeIndex(nodeIndex);
+        draggedNodeIndexRef.current = nodeIndex;
+        isDraggingNodeRef.current = true;
+        dragStartPosRef.current = { x: worldX, y: worldY };
+        return;
+      }
+    }
     if (isPanMode || isShiftPressed) {
       isDraggingRef.current = true;
       lastMousePosRef.current = { x: e.clientX, y: e.clientY };
     }
-  }, [canvas, isPanMode, isShiftPressed]);
+  }, [canvas, isPanMode, isShiftPressed, screenToWorld, getNodeUnderMouse]);
   const handleMouseMove = useCallback((e) => {
-    if (!isDraggingRef.current || !canvas || !rendererRef.current)
+    if (!canvas)
       return;
-    if (!(isPanMode || isShiftPressed))
+    if (isDraggingNodeRef.current && draggedNodeIndex !== null) {
+      const { worldX, worldY } = screenToWorld(e.clientX, e.clientY);
+      setAnimatedNodes((prevNodes) => {
+        const updatedNodes = [...prevNodes];
+        if (draggedNodeIndex < updatedNodes.length) {
+          const oldNode = updatedNodes[draggedNodeIndex];
+          updatedNodes[draggedNodeIndex] = {
+            ...oldNode,
+            x: worldX,
+            y: worldY,
+            vx: 0,
+            vy: 0
+          };
+        }
+        return updatedNodes;
+      });
       return;
-    const deltaX = e.clientX - lastMousePosRef.current.x;
-    const deltaY = e.clientY - lastMousePosRef.current.y;
-    const pixelRatio = window.devicePixelRatio || 1;
-    const worldDeltaX = deltaX * pixelRatio / cameraRef.current.zoom;
-    const worldDeltaY = deltaY * pixelRatio / cameraRef.current.zoom;
-    cameraRef.current.x -= worldDeltaX;
-    cameraRef.current.y -= worldDeltaY;
-    lastMousePosRef.current = { x: e.clientX, y: e.clientY };
-    try {
-      rendererRef.current.set_camera_position(cameraRef.current.x, cameraRef.current.y);
-    } catch (error2) {
-      console.error("Error updating camera position:", error2);
     }
-  }, [canvas, isPanMode, isShiftPressed]);
+    if (isDraggingRef.current && rendererRef.current) {
+      if (isPanMode || isShiftPressed) {
+        const deltaX = e.clientX - lastMousePosRef.current.x;
+        const deltaY = e.clientY - lastMousePosRef.current.y;
+        const pixelRatio = window.devicePixelRatio || 1;
+        const worldDeltaX = deltaX * pixelRatio / cameraRef.current.zoom;
+        const worldDeltaY = deltaY * pixelRatio / cameraRef.current.zoom;
+        cameraRef.current.x -= worldDeltaX;
+        cameraRef.current.y -= worldDeltaY;
+        lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+        try {
+          rendererRef.current.set_camera_position(cameraRef.current.x, cameraRef.current.y);
+        } catch (error2) {
+          console.error("Error updating camera position:", error2);
+        }
+      }
+      return;
+    }
+    if (!isPanMode && !isShiftPressed) {
+      const { worldX, worldY } = screenToWorld(e.clientX, e.clientY);
+      const nodeIndex = getNodeUnderMouse(worldX, worldY);
+      setHoveredNodeIndex(nodeIndex);
+    } else {
+      setHoveredNodeIndex(null);
+    }
+  }, [canvas, isPanMode, isShiftPressed, screenToWorld, getNodeUnderMouse, draggedNodeIndex]);
   const handleMouseUp = useCallback(() => {
     isDraggingRef.current = false;
+    if (isDraggingNodeRef.current) {
+      isDraggingNodeRef.current = false;
+      setDraggedNodeIndex(null);
+      draggedNodeIndexRef.current = null;
+      dragStartPosRef.current = null;
+    }
   }, []);
   const handleZoomIn = useCallback(() => {
     if (!rendererRef.current)
@@ -680,6 +798,17 @@ var FastGraph = ({
     if (startTimeRef.current === null) {
       startTimeRef.current = timestamp;
     }
+    frameCountRef.current++;
+    if (fpsLastTimeRef.current === 0) {
+      fpsLastTimeRef.current = timestamp;
+    }
+    const timeSinceLastFpsUpdate = timestamp - fpsLastTimeRef.current;
+    if (timeSinceLastFpsUpdate >= fpsUpdateIntervalRef.current) {
+      const currentFps = Math.round(frameCountRef.current * 1000 / timeSinceLastFpsUpdate);
+      setFps(currentFps);
+      frameCountRef.current = 0;
+      fpsLastTimeRef.current = timestamp;
+    }
     const elapsed = (timestamp - startTimeRef.current) / 1000;
     try {
       if (rendererRef.current && typeof rendererRef.current.render === "function") {
@@ -690,11 +819,7 @@ var FastGraph = ({
       }
     } catch (err) {
       console.error("Render error:", err);
-      setError(err instanceof Error ? err.message : "Render error");
-      if (animationIdRef.current) {
-        cancelAnimationFrame(animationIdRef.current);
-        animationIdRef.current = null;
-      }
+      setError(`Render error: ${err}`);
     }
   }, [isInitialized, error]);
   const handleResize = useCallback(() => {
@@ -900,7 +1025,7 @@ var FastGraph = ({
     className,
     style: {
       ...canvasStyle,
-      cursor: isPanMode || isShiftPressed ? isDraggingRef.current ? "grabbing" : "grab" : "default",
+      cursor: isDraggingNodeRef.current ? "grabbing" : isPanMode || isShiftPressed ? isDraggingRef.current ? "grabbing" : "grab" : hoveredNodeIndex !== null ? "pointer" : "default",
       outline: canvasFocused ? "2px solid rgba(0, 150, 255, 0.5)" : "none",
       outlineOffset: "2px"
     },
@@ -1007,7 +1132,7 @@ var FastGraph = ({
       outline: isShiftPressed ? "2px solid rgba(255, 193, 7, 0.8)" : "none"
     },
     title: isShiftPressed ? "Pan Mode: SHIFT HELD (Click to toggle manual mode)" : isPanMode ? "Pan Mode: ON (Click to disable)" : "Pan Mode: OFF (Click to enable)"
-  }, "\uD83D\uDDB1️ ", isPanMode || isShiftPressed ? "PAN ON" : "PAN OFF")), isGraphMode && isInitialized && !error && /* @__PURE__ */ React.createElement("div", {
+  }, "\uD83D\uDDB1️ PAN")), isGraphMode && isInitialized && !error && /* @__PURE__ */ React.createElement("div", {
     style: {
       position: "absolute",
       top: "10px",
@@ -1034,6 +1159,10 @@ var FastGraph = ({
   }, /* @__PURE__ */ React.createElement("span", {
     style: { color: "#2196F3" }
   }, "PAN button"), " toggles manual mode"), /* @__PURE__ */ React.createElement("div", {
+    style: { marginBottom: "4px" }
+  }, /* @__PURE__ */ React.createElement("span", {
+    style: { color: "#4CAF50" }
+  }, "Drag nodes"), " when not panning"), /* @__PURE__ */ React.createElement("div", {
     style: { marginBottom: "4px" }
   }, /* @__PURE__ */ React.createElement("span", {
     style: { color: "#FF9800" }
@@ -1131,7 +1260,22 @@ var FastGraph = ({
     }
   }, "Initializing WebGPU...", isGraphMode && /* @__PURE__ */ React.createElement("div", {
     style: { fontSize: "12px", marginTop: "4px" }
-  }, "Preparing to render ", nodes.length, " nodes and ", edges.length, " edges")));
+  }, "Preparing to render ", nodes.length, " nodes and ", edges.length, " edges")), isInitialized && !error && /* @__PURE__ */ React.createElement("div", {
+    style: {
+      position: "absolute",
+      bottom: "8px",
+      left: "8px",
+      padding: "4px 8px",
+      backgroundColor: "rgba(0, 0, 0, 0.7)",
+      color: "#fff",
+      fontSize: "12px",
+      fontFamily: "monospace",
+      borderRadius: "4px",
+      zIndex: 5,
+      userSelect: "none",
+      pointerEvents: "none"
+    }
+  }, fps, " FPS"));
 };
 // src/examples.ts
 function generateLinearGraph(nodeCount = 5) {
