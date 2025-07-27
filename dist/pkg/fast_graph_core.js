@@ -253,11 +253,11 @@ function takeFromExternrefTable0(idx) {
     return value;
 }
 function __wbg_adapter_32(arg0, arg1, arg2) {
-    wasm.closure782_externref_shim(arg0, arg1, arg2);
+    wasm.closure779_externref_shim(arg0, arg1, arg2);
 }
 
 function __wbg_adapter_1027(arg0, arg1, arg2, arg3) {
-    wasm.closure2217_externref_shim(arg0, arg1, arg2, arg3);
+    wasm.closure2214_externref_shim(arg0, arg1, arg2, arg3);
 }
 
 const __wbindgen_enum_GpuBlendFactor = ["zero", "one", "src", "one-minus-src", "src-alpha", "one-minus-src-alpha", "dst", "one-minus-dst", "dst-alpha", "one-minus-dst-alpha", "src-alpha-saturated", "constant", "one-minus-constant", "src1", "one-minus-src1", "src1-alpha", "one-minus-src1-alpha"];
@@ -475,11 +475,15 @@ export class FastGraphRenderer {
         return ret >>> 0;
     }
     /**
+     * @param {number} delta_time
+     * @param {number} damping_factor
+     * @param {number} spring_constant
+     * @param {number} rest_length
      * @param {number} repulsion_strength
      * @param {number} repulsion_radius
      */
-    calculate_forces(repulsion_strength, repulsion_radius) {
-        const ret = wasm.fastgraphrenderer_calculate_forces(this.__wbg_ptr, repulsion_strength, repulsion_radius);
+    integrate_physics(delta_time, damping_factor, spring_constant, rest_length, repulsion_strength, repulsion_radius) {
+        const ret = wasm.fastgraphrenderer_integrate_physics(this.__wbg_ptr, delta_time, damping_factor, spring_constant, rest_length, repulsion_strength, repulsion_radius);
         if (ret[1]) {
             throw takeFromExternrefTable0(ret[0]);
         }
@@ -2258,8 +2262,8 @@ function __wbg_get_imports() {
         const ret = false;
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper2086 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 783, __wbg_adapter_32);
+    imports.wbg.__wbindgen_closure_wrapper2083 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 780, __wbg_adapter_32);
         return ret;
     };
     imports.wbg.__wbindgen_debug_string = function(arg0, arg1) {

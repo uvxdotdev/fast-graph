@@ -288,40 +288,54 @@ impl FastGraphRenderer {
     }
 
     #[wasm_bindgen]
-    pub fn calculate_forces(&mut self, repulsion_strength: f32, repulsion_radius: f32) -> Result<(), JsValue> {
+    pub fn integrate_physics(&mut self, delta_time: f32, damping_factor: f32, spring_constant: f32, rest_length: f32, repulsion_strength: f32, repulsion_radius: f32) -> Result<(), JsValue> {
         if !self.is_initialized {
             return Err(JsValue::from_str("Renderer not initialized"));
         }
 
-        // Convert current nodes to the right format for force calculation
+        // Convert current nodes to the right format for physics integration
         let mut physics_nodes: Vec<NodeData> = self.nodes.iter().map(|node| NodeData {
             x: node.x,
             y: node.y,
-            vx: 0.0,
-            vy: 0.0,
-            fx: 0.0,
-            fy: 0.0,
+            vx: node.vx,
+            vy: node.vy,
+            fx: node.fx,
+            fy: node.fy,
             r: node.r,
             g: node.g,
             b: node.b,
             a: node.a,
             size: node.size,
-            mass: 1.0,
+            mass: node.mass,
         }).collect();
 
-        // Prepare edge data for force calculation
+        // Prepare edge data for physics integration
         let physics_edges: Vec<EdgeData> = self.edges.clone();
 
-        // Run force calculation on GPU
-        self.renderer.calculate_forces(
+        // Run physics integration on GPU
+        self.renderer.integrate_physics(
             &mut physics_nodes,
             &physics_edges,
+            delta_time,
+            damping_factor,
+            spring_constant,
+            rest_length,
             repulsion_strength,
             repulsion_radius
         )?;
 
-        // Note: Forces are calculated on GPU but we don't read them back yet
-        // Position integration will happen in JavaScript for now
+        // Update internal nodes with GPU results
+        for (i, physics_node) in physics_nodes.iter().enumerate() {
+            if i < self.nodes.len() {
+                self.nodes[i].x = physics_node.x;
+                self.nodes[i].y = physics_node.y;
+                self.nodes[i].vx = physics_node.vx;
+                self.nodes[i].vy = physics_node.vy;
+                self.nodes[i].fx = physics_node.fx;
+                self.nodes[i].fy = physics_node.fy;
+            }
+        }
+
         Ok(())
     }
 }

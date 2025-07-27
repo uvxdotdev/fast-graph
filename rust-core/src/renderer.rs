@@ -112,9 +112,25 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         }
     }
     
-    // Store calculated forces (position integration happens in JavaScript)
-    node.fx = total_force.x;
-    node.fy = total_force.y;
+    // Add calculated forces to existing forces (spring forces added by JavaScript)
+    node.fx += total_force.x;
+    node.fy += total_force.y;
+    
+    // Integrate velocity: v += f * dt
+    node.vx += node.fx * params.delta_time;
+    node.vy += node.fy * params.delta_time;
+    
+    // Apply damping: v *= damping
+    node.vx *= params.damping_factor;
+    node.vy *= params.damping_factor;
+    
+    // Integrate position: x += v * dt
+    node.x += node.vx * params.delta_time;
+    node.y += node.vy * params.delta_time;
+    
+    // Reset force accumulators
+    node.fx = 0.0;
+    node.fy = 0.0;
     
     nodes[index] = node;
 }
@@ -760,7 +776,7 @@ impl Renderer {
         (pipeline, bind_group_layout)
     }
 
-    pub fn calculate_forces(&mut self, nodes: &mut [NodeData], edges: &[EdgeData], repulsion_strength: f32, repulsion_radius: f32) -> Result<(), JsValue> {
+    pub fn integrate_physics(&mut self, nodes: &mut [NodeData], edges: &[EdgeData], delta_time: f32, damping_factor: f32, spring_constant: f32, rest_length: f32, repulsion_strength: f32, repulsion_radius: f32) -> Result<(), JsValue> {
         if let (Some(device), Some(queue), Some(compute_pipeline), Some(physics_params_buffer), Some(compute_bind_group), Some(node_physics_buffer), Some(edge_physics_buffer)) = (
             &self.device,
             &self.queue,
@@ -770,12 +786,12 @@ impl Renderer {
             &self.node_physics_buffer,
             &self.edge_physics_buffer,
         ) {
-            // Update physics parameters (simplified for force calculation only)
+            // Update physics parameters for full integration
             let physics_params = [
-                0.0,  // delta_time (not used for force calculation)
-                0.0,  // damping_factor (not used for force calculation)
-                0.0,  // spring_constant (not used for force calculation)
-                0.0,  // rest_length (not used for force calculation)
+                delta_time,
+                damping_factor,
+                spring_constant,
+                rest_length,
                 repulsion_strength,
                 repulsion_radius,
                 nodes.len() as f32,
@@ -812,16 +828,16 @@ impl Renderer {
                 compute_pass.dispatch_workgroups(workgroup_count as u32, 1, 1);
             }
             
-            // Submit compute work to calculate forces
+            // Submit compute work for physics integration
             queue.submit(std::iter::once(encoder.finish()));
             
-            // Forces are now calculated and stored in the GPU buffer
-            // The render method will use the updated node data with forces
+            // Physics integration completed on GPU
+            // Updated node data will be read back during next render pass
             
             Ok(())
         } else {
             // No compute shader support available, physics will run on CPU
-            log!("GPU force calculation not available, falling back to CPU physics");
+            log!("GPU physics integration not available, falling back to CPU physics");
             Ok(())
         }
     }
