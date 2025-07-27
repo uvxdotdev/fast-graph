@@ -1,19 +1,20 @@
 # 🚀 FastGraph
 
-High-performance React component library for rendering animated gradients and graphics, powered by **Rust**, **WebAssembly**, and **WebGPU**.
+High-performance **graph visualization** React component library powered by **Rust**, **WebAssembly**, and **WebGPU compute shaders**.
 
 [![npm version](https://badge.fury.io/js/@uvxdotdev%2Ffastgraph.svg)](https://badge.fury.io/js/@uvxdotdev%2Ffastgraph)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## ✨ Features
 
-- 🔥 **Hardware Accelerated**: Powered by WebGPU for maximum performance
-- ⚡ **Lightning Fast**: Core rendering engine written in Rust + WASM
-- 🎨 **Beautiful Gradients**: Smooth, animated color transitions
+- 🔥 **WebGPU Accelerated**: GPU compute shaders for physics simulation
+- ⚡ **High Performance**: Rust + WASM core with spatial partitioning
+- 📊 **Interactive Graphs**: Drag nodes, pan, zoom, and explore
+- 🎯 **Physics Simulation**: Spring forces, node repulsion, and damping
 - 📱 **Responsive**: Automatic canvas sizing with device pixel ratio support
 - 🔧 **TypeScript**: Full type safety out of the box
-- 🪶 **Lightweight**: Minimal bundle size with zero dependencies
-- 🎯 **React Ready**: Drop-in component for any React project
+- 🪶 **Zero Dependencies**: Lightweight with no external runtime deps
+- 🎮 **Real-time FPS**: Performance monitoring built-in
 
 ## 📦 Installation
 
@@ -35,16 +36,27 @@ bun add @uvxdotdev/fastgraph
 import React from 'react';
 import { FastGraph } from '@uvxdotdev/fastgraph';
 
+const nodes = [
+  { id: '1', x: 0.3, y: 0.3, color: '#ff6b6b', size: 8 },
+  { id: '2', x: 0.7, y: 0.4, color: '#4ecdc4', size: 12 },
+  { id: '3', x: 0.5, y: 0.7, color: '#45b7d1', size: 10 }
+];
+
+const edges = [
+  { source: '1', target: '2', color: '#666', width: 2 },
+  { source: '2', target: '3', color: '#999', width: 1.5 }
+];
+
 function App() {
   return (
-    <div>
-      <FastGraph 
-        color1="#ff0000" 
-        color2="#0000ff" 
-        width={800} 
-        height={400} 
-      />
-    </div>
+    <FastGraph 
+      nodes={nodes}
+      edges={edges}
+      width={800} 
+      height={600}
+      enablePhysics={true}
+      useGPUAcceleration={true}
+    />
   );
 }
 
@@ -59,107 +71,191 @@ export default App;
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `color1` | `string` | `#ff0000` | First gradient color (hex format) |
-| `color2` | `string` | `#0000ff` | Second gradient color (hex format) |
-| `width` | `number` | `600` | Canvas width in pixels |
-| `height` | `number` | `300` | Canvas height in pixels |
-| `className` | `string` | `undefined` | CSS class name for the container |
-| `style` | `CSSProperties` | `undefined` | Inline styles for the container |
+| `nodes` | `GraphNode[]` | `[]` | Array of graph nodes |
+| `edges` | `GraphEdge[]` | `[]` | Array of graph edges |
+| `width` | `number` | `800` | Canvas width in pixels |
+| `height` | `number` | `600` | Canvas height in pixels |
+| `enablePhysics` | `boolean` | `false` | Enable physics simulation |
+| `useGPUAcceleration` | `boolean` | `false` | Use WebGPU compute shaders |
+| `dampingFactor` | `number` | `0.99` | Physics damping (0-1) |
+| `springConstant` | `number` | `0.01` | Spring force strength |
+| `restLength` | `number` | `0.1` | Spring rest length |
+| `color1` | `string` | `#ff0000` | Background gradient color 1 |
+| `color2` | `string` | `#0000ff` | Background gradient color 2 |
+| `className` | `string` | `undefined` | CSS class for container |
+| `style` | `CSSProperties` | `undefined` | Inline styles for container |
 
-#### Example with All Props
+#### Node Data Structure
 
 ```tsx
-<FastGraph 
-  color1="#ff6b6b"
-  color2="#4ecdc4"
-  width={1200}
-  height={600}
-  className="my-gradient"
-  style={{ borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-/>
+interface GraphNode {
+  id: string;           // Unique identifier
+  x: number;            // X position (0-1 normalized)
+  y: number;            // Y position (0-1 normalized) 
+  color?: string;       // Hex color (default: '#3498db')
+  size?: number;        // Radius in pixels (default: 5)
+  vx?: number;          // X velocity for physics
+  vy?: number;          // Y velocity for physics
+}
 ```
+
+#### Edge Data Structure
+
+```tsx
+interface GraphEdge {
+  source: string;       // Source node ID
+  target: string;       // Target node ID
+  color?: string;       // Hex color (default: '#666666')
+  width?: number;       // Line width (default: 1)
+}
+```
+
+## 🎮 Interactive Controls
+
+FastGraph includes built-in interactive controls:
+
+### Camera Controls
+- **Zoom In/Out**: Buttons in top-right corner or mouse wheel
+- **Pan**: Hold `Shift` and drag, or toggle `PAN` button
+- **Reset**: Home button to reset camera position
+- **Focus**: Click canvas to enable keyboard shortcuts
+
+### Node Interaction
+- **Drag Nodes**: Click and drag any node to move it
+- **Hover Effects**: Nodes highlight on mouse hover
+- **Physics Response**: Dragged nodes affect connected springs
+
+### Visual Feedback
+- **FPS Counter**: Real-time performance in bottom-left
+- **Control Help**: Interactive guide in top-left
+- **Pan Mode Indicator**: Shows current interaction mode
 
 ## 🎨 Usage Examples
 
-### Interactive Color Picker
+### Static Network Graph
 
 ```tsx
-import React, { useState } from 'react';
+import React from 'react';
 import { FastGraph } from '@uvxdotdev/fastgraph';
 
-function InteractiveDemo() {
-  const [color1, setColor1] = useState('#ff0000');
-  const [color2, setColor2] = useState('#0000ff');
+const socialNetwork = {
+  nodes: [
+    { id: 'alice', x: 0.5, y: 0.3, color: '#e74c3c', size: 12 },
+    { id: 'bob', x: 0.3, y: 0.6, color: '#3498db', size: 10 },
+    { id: 'charlie', x: 0.7, y: 0.6, color: '#2ecc71', size: 8 },
+    { id: 'diana', x: 0.5, y: 0.8, color: '#f39c12', size: 10 }
+  ],
+  edges: [
+    { source: 'alice', target: 'bob', width: 3 },
+    { source: 'alice', target: 'charlie', width: 2 },
+    { source: 'bob', target: 'diana', width: 1.5 },
+    { source: 'charlie', target: 'diana', width: 2.5 }
+  ]
+};
+
+function SocialNetworkViz() {
+  return (
+    <FastGraph 
+      nodes={socialNetwork.nodes}
+      edges={socialNetwork.edges}
+      width={600}
+      height={400}
+      enablePhysics={false}
+    />
+  );
+}
+```
+
+### Dynamic Physics Simulation
+
+```tsx
+import React, { useState, useEffect } from 'react';
+import { FastGraph } from '@uvxdotdev/fastgraph';
+
+function PhysicsDemo() {
+  const [nodes, setNodes] = useState([
+    { id: '1', x: 0.2, y: 0.2, vx: 0.1, vy: 0.05, color: '#ff6b6b', size: 8 },
+    { id: '2', x: 0.8, y: 0.3, vx: -0.1, vy: 0.1, color: '#4ecdc4', size: 10 },
+    { id: '3', x: 0.5, y: 0.8, vx: 0.05, vy: -0.1, color: '#45b7d1', size: 12 }
+  ]);
+
+  const edges = [
+    { source: '1', target: '2', color: '#666' },
+    { source: '2', target: '3', color: '#999' },
+    { source: '3', target: '1', color: '#ccc' }
+  ];
 
   return (
     <div>
-      <div style={{ marginBottom: '20px' }}>
-        <label>
-          Color 1: 
-          <input 
-            type="color" 
-            value={color1} 
-            onChange={(e) => setColor1(e.target.value)} 
-          />
-        </label>
-        <label>
-          Color 2: 
-          <input 
-            type="color" 
-            value={color2} 
-            onChange={(e) => setColor2(e.target.value)} 
-          />
-        </label>
-      </div>
-      
+      <h3>🚀 GPU-Accelerated Physics</h3>
       <FastGraph 
-        color1={color1}
-        color2={color2}
+        nodes={nodes}
+        edges={edges}
+        enablePhysics={true}
+        useGPUAcceleration={true}
+        dampingFactor={0.98}
+        springConstant={0.02}
         width={800}
-        height={400}
+        height={600}
       />
     </div>
   );
 }
 ```
 
-### Responsive Design
+### Responsive Graph Layout
 
 ```tsx
 import React, { useEffect, useState } from 'react';
 import { FastGraph } from '@uvxdotdev/fastgraph';
 
-function ResponsiveGradient() {
-  const [dimensions, setDimensions] = useState({ width: 800, height: 400 });
+function ResponsiveGraph() {
+  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
   useEffect(() => {
-    const updateDimensions = () => {
-      setDimensions({
-        width: Math.min(window.innerWidth - 40, 1200),
-        height: Math.min(window.innerHeight * 0.6, 600)
-      });
+    const updateSize = () => {
+      const container = document.getElementById('graph-container');
+      if (container) {
+        setDimensions({
+          width: container.clientWidth,
+          height: Math.min(container.clientHeight, 600)
+        });
+      }
     };
 
-    window.addEventListener('resize', updateDimensions);
-    updateDimensions();
-
-    return () => window.removeEventListener('resize', updateDimensions);
+    window.addEventListener('resize', updateSize);
+    updateSize();
+    return () => window.removeEventListener('resize', updateSize);
   }, []);
 
+  const generateNodes = (count: number) => {
+    return Array.from({ length: count }, (_, i) => ({
+      id: `node-${i}`,
+      x: Math.random(),
+      y: Math.random(),
+      color: `hsl(${(i * 137.5) % 360}, 70%, 60%)`,
+      size: 4 + Math.random() * 8
+    }));
+  };
+
   return (
-    <FastGraph 
-      color1="#667eea"
-      color2="#764ba2"
-      width={dimensions.width}
-      height={dimensions.height}
-    />
+    <div id="graph-container" style={{ width: '100%', height: '100vh' }}>
+      <FastGraph 
+        nodes={generateNodes(50)}
+        edges={[]}
+        width={dimensions.width}
+        height={dimensions.height}
+        enablePhysics={true}
+        useGPUAcceleration={true}
+      />
+    </div>
   );
 }
 ```
 
 ## ⚙️ Vite Configuration
 
-If you're using **Vite** as your build tool, you need special configuration to properly serve WASM files. Add the following to your `vite.config.ts`:
+FastGraph requires special Vite configuration for WebGPU and WASM support:
 
 ```typescript
 import { defineConfig } from 'vite'
@@ -174,188 +270,222 @@ export default defineConfig({
     },
     fs: {
       allow: ['..', '.']
-    },
-    watch: {
-      ignored: ['!**/node_modules/@uvxdotdev/fastgraph/**']
     }
   },
   optimizeDeps: {
-    exclude: ['@uvxdotdev/fastgraph'],
-    include: ['react', 'react-dom']
+    exclude: ['@uvxdotdev/fastgraph']
   },
   assetsInclude: ['**/*.wasm'],
   define: {
     global: 'globalThis',
-  },
-  worker: {
-    format: 'es'
   }
 })
 ```
 
-### 🔍 **Why These Settings Are Needed:**
+### 🚨 Alternative: Use Bun Development Server
 
-- **CORS Headers**: Required for WebGPU and WASM SharedArrayBuffer support
-- **File System Access**: Allows Vite to serve files from node_modules 
-- **Exclude from Optimization**: Prevents Vite from pre-bundling the WASM module
-- **WASM Assets**: Treats .wasm files as static assets with correct MIME types
-- **Global Definition**: Ensures compatibility with WASM-generated code
-
-### 🚨 **Alternative: Use Bun Serve**
-
-If you encounter issues with Vite, you can use Bun's built-in server which handles WASM perfectly:
+For the best development experience with WASM:
 
 ```bash
-# Instead of: npm run dev
 bunx serve . -p 3000
 ```
 
-## 🛠️ Troubleshooting
+## 🔧 Browser Requirements
 
-### Common Issues
+### WebGPU Support Required
 
-#### "WebGPU not supported" Error
+FastGraph requires browsers with **WebGPU support** for GPU acceleration:
+
+- ✅ **Chrome 113+** (stable)
+- ✅ **Edge 113+** (stable) 
+- ✅ **Safari 18+** (preview/beta)
+- ⚠️ **Firefox 121+** (enable `dom.webgpu.enabled`)
+
+### Enable WebGPU (if needed)
+
 ```bash
-# Enable WebGPU in your browser:
-# Chrome/Edge: chrome://flags/#enable-unsafe-webgpu
-# Firefox: about:config → dom.webgpu.enabled = true
+# Chrome/Edge
+chrome://flags/#enable-unsafe-webgpu
+
+# Firefox
+about:config → dom.webgpu.enabled = true
 ```
 
-#### WASM Loading Errors with Vite
-```bash
-# Error: "Failed to fetch dynamically imported module"
-# Solution: Use the Vite configuration above or switch to bun serve
-bunx serve . -p 3000
-```
-
-#### "Canvas element not found" Error
-```tsx
-// Make sure your canvas has proper dimensions
-<FastGraph 
-  width={800}    // Must be > 0
-  height={400}   // Must be > 0
-  color1="#ff0000"
-  color2="#0000ff"
-/>
-```
-
-#### Performance Issues
-```tsx
-// Limit the number of FastGraph components (only one active at a time)
-// Use smaller canvas dimensions for better performance
-<FastGraph width={400} height={200} />
-```
-
-#### Build Errors with TypeScript
-```json
-// Add to tsconfig.json
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "lib": ["ES2020", "DOM", "DOM.Iterable"]
-  }
-}
-```
-
-## 🔧 Requirements
-
-### Browser Support
-
-FastGraph requires browsers with **WebGPU support**:
-
-- ✅ Chrome 113+ (stable)
-- ✅ Edge 113+ (stable) 
-- ✅ Firefox 121+ (behind flag)
-- ✅ Safari 18+ (preview)
-
-### Fallback Handling
+### Graceful Fallback
 
 ```tsx
-function App() {
-  const [webGPUSupported, setWebGPUSupported] = useState(false);
+function GraphWithFallback() {
+  const [hasWebGPU, setHasWebGPU] = useState(false);
 
   useEffect(() => {
-    setWebGPUSupported('gpu' in navigator);
+    setHasWebGPU('gpu' in navigator);
   }, []);
 
-  if (!webGPUSupported) {
+  if (!hasWebGPU) {
     return (
-      <div style={{ padding: '20px', textAlign: 'center' }}>
-        <h3>WebGPU Not Supported</h3>
-        <p>This browser doesn't support WebGPU. Please use Chrome 113+ or Edge 113+.</p>
+      <div style={{ 
+        padding: '40px', 
+        textAlign: 'center',
+        border: '2px dashed #ccc',
+        borderRadius: '8px'
+      }}>
+        <h3>⚠️ WebGPU Required</h3>
+        <p>Please use Chrome 113+ or Edge 113+ for the best experience.</p>
+        <p>Or enable WebGPU in your browser settings.</p>
       </div>
     );
   }
 
-  return <FastGraph color1="#ff0000" color2="#0000ff" />;
+  return (
+    <FastGraph 
+      nodes={nodes}
+      edges={edges}
+      enablePhysics={true}
+      useGPUAcceleration={true}
+    />
+  );
 }
 ```
+
+## 🛠️ Performance Tips
+
+### GPU vs CPU Physics
+
+```tsx
+// ⚡ GPU Accelerated (recommended for large graphs)
+<FastGraph 
+  nodes={manyNodes}
+  edges={manyEdges}
+  enablePhysics={true}
+  useGPUAcceleration={true}  // Uses WebGPU compute shaders
+/>
+
+// 🖥️ CPU Only (fallback for small graphs)
+<FastGraph 
+  nodes={fewNodes}
+  edges={fewEdges}
+  enablePhysics={true}
+  useGPUAcceleration={false} // Uses CPU calculations
+/>
+```
+
+### Optimization Guidelines
+
+- **GPU Acceleration**: Best for 100+ nodes with physics
+- **Static Graphs**: Disable physics for better performance  
+- **Canvas Size**: Larger canvases require more GPU memory
+- **Node Count**: GPU shows biggest benefit with 500+ nodes
+- **FPS Monitoring**: Use built-in counter to track performance
+
+## 🚀 Physics System
+
+FastGraph includes a sophisticated physics engine with:
+
+### Force Simulation
+- **Spring Forces**: Connects nodes via edges with configurable stiffness
+- **Repulsion Forces**: Prevents node overlap with distance-based falloff
+- **Damping**: Gradually reduces velocity for stable layouts
+
+### GPU Compute Pipeline
+- **Spatial Partitioning**: Efficient O(n) repulsion calculations
+- **Multi-pass Shaders**: Optimized compute workgroups
+- **Memory Management**: Automatic buffer sizing and updates
+
+### Physics Parameters
+
+```tsx
+<FastGraph 
+  enablePhysics={true}
+  useGPUAcceleration={true}
+  dampingFactor={0.99}      // 0.9 = high damping, 0.99 = low damping
+  springConstant={0.01}     // 0.001 = weak springs, 0.1 = strong springs  
+  restLength={0.1}          // Preferred edge length (normalized)
+/>
+```
+
+## 🎯 Roadmap
+
+- [ ] 🔍 **Clustering Algorithms**: Automatic community detection
+- [ ] 📊 **Layout Algorithms**: Force-directed, hierarchical, circular
+- [ ] 🎨 **Visual Enhancements**: Node labels, edge labels, themes
+- [ ] 📱 **Touch Support**: Multi-touch gestures and mobile optimization
+- [ ] 🔄 **Animation Timeline**: Keyframe-based graph animations
+- [ ] 📈 **Performance Analytics**: Detailed GPU utilization metrics
+- [ ] 🌐 **Data Integration**: CSV, JSON, GraphML import/export
 
 ## 🏗️ Development
 
 ### Building from Source
 
 ```bash
-# Clone the repository
 git clone https://github.com/uvxdotdev/fastgraph.git
 cd fastgraph
 
-# Install dependencies
+# Install dependencies  
 bun install
 
-# Build the library
-./build.sh
+# Build Rust + WASM core
+cd rust-core && wasm-pack build --target web --release && cd ..
+
+# Build TypeScript library
+bun run build
 
 # Test the component
-bun run serve
+bun serve test-physics.html
 ```
 
-### Project Structure
+### Project Architecture
 
 ```
-@uvxdotdev/fastgraph/
-├── src/                    # TypeScript React components
-│   ├── FastGraph.tsx      # Main component
+fastgraph/
+├── src/                    # React TypeScript components
+│   ├── FastGraph.tsx      # Main graph component
 │   └── index.ts           # Public exports
-├── rust-core/             # Rust + WASM core
-│   ├── src/               # Rust source code
-│   ├── shaders/           # WebGPU shaders
-│   └── Cargo.toml         # Rust dependencies
+├── rust-core/             # Rust + WebGPU engine
+│   ├── src/
+│   │   ├── lib.rs         # WASM bindings
+│   │   └── renderer.rs    # WebGPU renderer + physics
+│   └── Cargo.toml
 ├── dist/                  # Built library
-└── sample-app/            # Example React app
+├── test-physics.html      # Physics demo
+└── README.md
 ```
-
-## 🎯 Roadmap
-
-- [ ] 📊 Graph plotting components (line, bar, scatter)
-- [ ] 🎛️ Interactive controls and zoom
-- [ ] 🎨 More gradient patterns and effects
-- [ ] 📱 React Native support
-- [ ] 🔄 Animation timeline controls
-- [ ] 🎪 3D visualizations
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+We welcome contributions! Please:
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Test your changes with WebGPU browsers
+4. Submit a Pull Request with clear description
+
+### Development Setup
+
+```bash
+# Required tools
+rustup target add wasm32-unknown-unknown
+cargo install wasm-pack
+
+# Development workflow
+./build.sh              # Build everything
+bun serve test-physics.html  # Test in browser
+```
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
-- Built with [wgpu](https://wgpu.rs/) for WebGPU bindings
-- Powered by [wasm-pack](https://github.com/rustwasm/wasm-pack) for Rust/WASM integration
-- Inspired by modern graphics programming techniques
+- **[wgpu](https://wgpu.rs/)**: WebGPU implementation for Rust
+- **[wasm-pack](https://rustwasm.github.io/wasm-pack/)**: Rust/WASM toolchain
+- **Graph algorithms**: Inspired by D3.js force simulation
 
 ---
 
-**Made with ❤️ and ⚡ by the FastGraph team**
+**⚡ High-performance graph visualization for the modern web**
 
-For questions, issues, or feature requests, please visit our [GitHub repository](https://github.com/uvxdotdev/fastgraph).
+Built with Rust 🦀 + WebGPU 🔥 + React ⚛️
+
+For questions and support, visit our [GitHub repository](https://github.com/uvxdotdev/fastgraph).
