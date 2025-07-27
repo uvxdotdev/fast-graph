@@ -887,7 +887,8 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                 lineHeight: '1.4',
                 maxWidth: '200px',
                 zIndex: 20,
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                pointerEvents: 'none'
             } },
             React.createElement("div", { style: { fontWeight: 'bold', marginBottom: '8px', color: '#4CAF50' } }, "\uD83C\uDFAE Pan Controls"),
             React.createElement("div", { style: { marginBottom: '4px' } },

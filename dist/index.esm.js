@@ -1146,7 +1146,8 @@ var FastGraph = ({
       lineHeight: "1.4",
       maxWidth: "200px",
       zIndex: 20,
-      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)"
+      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
+      pointerEvents: "none"
     }
   }, /* @__PURE__ */ React.createElement("div", {
     style: { fontWeight: "bold", marginBottom: "8px", color: "#4CAF50" }

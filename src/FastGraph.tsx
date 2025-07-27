@@ -1136,7 +1136,8 @@ export const FastGraph: React.FC<FastGraphProps> = ({
           lineHeight: '1.4',
           maxWidth: '200px',
           zIndex: 20,
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+          pointerEvents: 'none'
         }}>
           <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#4CAF50' }}>
             🎮 Pan Controls
