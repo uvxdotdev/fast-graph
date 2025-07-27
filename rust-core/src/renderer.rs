@@ -49,30 +49,29 @@ struct PhysicsParams {
     edge_count: u32,
 }
 
+struct GridCell {
+    node_indices: array<u32, 32>,  // Max 32 nodes per cell
+    node_count: u32,
+}
+
 @group(0) @binding(0) var<storage, read_write> nodes: array<NodeData>;
 @group(0) @binding(1) var<storage, read> edges: array<EdgeData>;
 @group(0) @binding(2) var<uniform> params: PhysicsParams;
+@group(0) @binding(3) var<storage, read_write> grid: array<GridCell, 1024>; // 32x32 grid
 
-fn distance(x1: f32, y1: f32, x2: f32, y2: f32) -> f32 {
-    let dx = x2 - x1;
-    let dy = y2 - y1;
-    return sqrt(dx * dx + dy * dy);
+const GRID_SIZE: u32 = 32u;
+const WORLD_MIN: f32 = -1.0;
+const WORLD_MAX: f32 = 1.0;
+const WORLD_SIZE: f32 = 2.0; // WORLD_MAX - WORLD_MIN
+
+fn get_grid_cell(pos: vec2<f32>) -> vec2<u32> {
+    let normalized_pos = (pos - vec2<f32>(WORLD_MIN)) / WORLD_SIZE;
+    let clamped_pos = clamp(normalized_pos, vec2<f32>(0.0), vec2<f32>(0.999));
+    return vec2<u32>(u32(clamped_pos.x * f32(GRID_SIZE)), u32(clamped_pos.y * f32(GRID_SIZE)));
 }
 
-fn calculate_spring_force(node_a: NodeData, node_b: NodeData) -> vec2<f32> {
-    let dx = node_b.x - node_a.x;
-    let dy = node_b.y - node_a.y;
-    let dist = sqrt(dx * dx + dy * dy);
-    
-    if (dist < 0.001) {
-        return vec2<f32>(0.0, 0.0);
-    }
-    
-    let force_magnitude = params.spring_constant * (dist - params.rest_length);
-    let nx = dx / dist;
-    let ny = dy / dist;
-    
-    return vec2<f32>(nx * force_magnitude, ny * force_magnitude);
+fn get_grid_index(grid_pos: vec2<u32>) -> u32 {
+    return grid_pos.y * GRID_SIZE + grid_pos.x;
 }
 
 fn calculate_repulsion_force(node_a: NodeData, node_b: NodeData) -> vec2<f32> {
@@ -92,8 +91,88 @@ fn calculate_repulsion_force(node_a: NodeData, node_b: NodeData) -> vec2<f32> {
     return vec2<f32>(nx * force_magnitude, ny * force_magnitude);
 }
 
+// Pass 1: Clear grid and assign nodes to cells
 @compute @workgroup_size(64)
-fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+fn clear_grid(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let grid_index = global_id.x;
+    
+    if (grid_index >= 1024u) {
+        return;
+    }
+    
+    grid[grid_index].node_count = 0u;
+}
+
+@compute @workgroup_size(64) 
+fn assign_to_grid(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let node_index = global_id.x;
+    
+    if (node_index >= params.node_count) {
+        return;
+    }
+    
+    let node = nodes[node_index];
+    let grid_pos = get_grid_cell(vec2<f32>(node.x, node.y));
+    let grid_index = get_grid_index(grid_pos);
+    
+    // Atomically add node to grid cell
+    let cell_node_count = atomicAdd(&grid[grid_index].node_count, 1u);
+    
+    // Only add if cell isn't full
+    if (cell_node_count < 32u) {
+        grid[grid_index].node_indices[cell_node_count] = node_index;
+    }
+}
+
+// Pass 2: Calculate repulsion using grid
+@compute @workgroup_size(64)
+fn calculate_repulsion(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let node_index = global_id.x;
+    
+    if (node_index >= params.node_count) {
+        return;
+    }
+    
+    let node = nodes[node_index];
+    let grid_pos = get_grid_cell(vec2<f32>(node.x, node.y));
+    var total_force = vec2<f32>(0.0, 0.0);
+    
+    // Check current cell and 8 neighboring cells (3x3 area)
+    for (var dy = -1; dy <= 1; dy++) {
+        for (var dx = -1; dx <= 1; dx++) {
+            let check_x = i32(grid_pos.x) + dx;
+            let check_y = i32(grid_pos.y) + dy;
+            
+            // Bounds check
+            if (check_x >= 0 && check_x < i32(GRID_SIZE) && 
+                check_y >= 0 && check_y < i32(GRID_SIZE)) {
+                
+                let check_grid_pos = vec2<u32>(u32(check_x), u32(check_y));
+                let check_grid_index = get_grid_index(check_grid_pos);
+                let cell = grid[check_grid_index];
+                
+                // Check all nodes in this cell
+                for (var i = 0u; i < cell.node_count && i < 32u; i++) {
+                    let other_node_index = cell.node_indices[i];
+                    
+                    if (other_node_index != node_index) {
+                        let other_node = nodes[other_node_index];
+                        let repulsion_force = calculate_repulsion_force(node, other_node);
+                        total_force -= repulsion_force;
+                    }
+                }
+            }
+        }
+    }
+    
+    // Update node with calculated repulsion forces
+    nodes[node_index].fx += total_force.x;
+    nodes[node_index].fy += total_force.y;
+}
+
+// Pass 3: Physics integration
+@compute @workgroup_size(64)
+fn integrate_physics(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let index = global_id.x;
     
     if (index >= params.node_count) {
@@ -101,20 +180,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
     
     var node = nodes[index];
-    var total_force = vec2<f32>(0.0, 0.0);
-    
-    // Calculate repulsion forces from all other nodes
-    for (var i = 0u; i < params.node_count; i++) {
-        if (i != index) {
-            let other_node = nodes[i];
-            let repulsion_force = calculate_repulsion_force(node, other_node);
-            total_force -= repulsion_force;
-        }
-    }
-    
-    // Add calculated forces to existing forces (spring forces added by JavaScript)
-    node.fx += total_force.x;
-    node.fy += total_force.y;
     
     // Integrate velocity: v += f * dt
     node.vx += node.fx * params.delta_time;
@@ -150,7 +215,10 @@ pub struct Renderer {
     gradient_pipeline: Option<RenderPipeline>,
     node_pipeline: Option<RenderPipeline>,
     edge_pipeline: Option<RenderPipeline>,
-    compute_pipeline: Option<ComputePipeline>,
+    clear_grid_pipeline: Option<ComputePipeline>,
+    assign_grid_pipeline: Option<ComputePipeline>,
+    repulsion_pipeline: Option<ComputePipeline>,
+    integration_pipeline: Option<ComputePipeline>,
     canvas: Option<HtmlCanvasElement>,
     uniform_buffer: Option<Buffer>,
     uniform_bind_group: Option<BindGroup>,
@@ -162,6 +230,7 @@ pub struct Renderer {
     edge_instance_buffer: Option<Buffer>,
     node_physics_buffer: Option<Buffer>,
     edge_physics_buffer: Option<Buffer>,
+    grid_buffer: Option<Buffer>,
 }
 
 #[repr(C)]
@@ -187,7 +256,10 @@ impl Renderer {
             gradient_pipeline: None,
             node_pipeline: None,
             edge_pipeline: None,
-            compute_pipeline: None,
+            clear_grid_pipeline: None,
+            assign_grid_pipeline: None,
+            repulsion_pipeline: None,
+            integration_pipeline: None,
             canvas: None,
             uniform_buffer: None,
             uniform_bind_group: None,
@@ -199,6 +271,7 @@ impl Renderer {
             edge_instance_buffer: None,
             node_physics_buffer: None,
             edge_physics_buffer: None,
+            grid_buffer: None,
         }
     }
 
@@ -349,10 +422,10 @@ impl Renderer {
         let edge_pipeline = self.create_edge_pipeline(&device, config.format, &uniform_bind_group_layout);
         
         // Conditionally create compute pipeline for physics (only if device supports storage buffers)
-        let (compute_pipeline, compute_bind_group, node_physics_buffer, edge_physics_buffer, physics_params_buffer) = 
-            if device.limits().max_storage_buffers_per_shader_stage >= 2 {
+        let (compute_pipelines, compute_bind_group, node_physics_buffer, edge_physics_buffer, physics_params_buffer, grid_buffer) = 
+            if device.limits().max_storage_buffers_per_shader_stage >= 3 {
                 log!("Device supports compute shaders, enabling GPU physics");
-                let (compute_pipeline, compute_bind_group_layout) = self.create_compute_pipeline(&device);
+                let ((clear_grid_pipeline, assign_grid_pipeline, repulsion_pipeline, integration_pipeline), compute_bind_group_layout) = self.create_compute_pipeline(&device);
                 
                 // Create physics buffers
                 let node_physics_buffer = device.create_buffer(&BufferDescriptor {
@@ -377,6 +450,14 @@ impl Renderer {
                     mapped_at_creation: false,
                 });
                 
+                // Create grid buffer for spatial partitioning (32x32 = 1024 cells)
+                let grid_buffer = device.create_buffer(&BufferDescriptor {
+                    label: Some("Spatial Grid Buffer"),
+                    size: (1024 * (32 * 4 + 4)) as u64, // 1024 cells * (32 u32 indices + 1 u32 count) * 4 bytes
+                    usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+                
                 // Create compute bind group
                 let compute_bind_group = device.create_bind_group(&BindGroupDescriptor {
                     label: Some("Physics Compute Bind Group"),
@@ -394,13 +475,17 @@ impl Renderer {
                             binding: 2,
                             resource: physics_params_buffer.as_entire_binding(),
                         },
+                        BindGroupEntry {
+                            binding: 3,
+                            resource: grid_buffer.as_entire_binding(),
+                        },
                     ],
                 });
 
-                (Some(compute_pipeline), Some(compute_bind_group), Some(node_physics_buffer), Some(edge_physics_buffer), Some(physics_params_buffer))
+                (Some((clear_grid_pipeline, assign_grid_pipeline, repulsion_pipeline, integration_pipeline)), Some(compute_bind_group), Some(node_physics_buffer), Some(edge_physics_buffer), Some(physics_params_buffer), Some(grid_buffer))
             } else {
                 log!("Device does not support compute shaders, physics will be CPU-only");
-                (None, None, None, None, None)
+                (None, None, None, None, None, None)
             };
         
         // Create node vertex buffer (quad vertices)
@@ -462,7 +547,13 @@ impl Renderer {
         self.gradient_pipeline = Some(gradient_pipeline);
         self.node_pipeline = Some(node_pipeline);
         self.edge_pipeline = Some(edge_pipeline);
-        self.compute_pipeline = compute_pipeline;
+        
+        if let Some((clear_grid, assign_grid, repulsion, integration)) = compute_pipelines {
+            self.clear_grid_pipeline = Some(clear_grid);
+            self.assign_grid_pipeline = Some(assign_grid);
+            self.repulsion_pipeline = Some(repulsion);
+            self.integration_pipeline = Some(integration);
+        }
         self.canvas = Some(canvas.clone());
         self.uniform_buffer = Some(uniform_buffer);
         self.uniform_bind_group = Some(uniform_bind_group);
@@ -474,6 +565,8 @@ impl Renderer {
         self.edge_instance_buffer = Some(edge_instance_buffer);
         self.node_physics_buffer = node_physics_buffer;
         self.edge_physics_buffer = edge_physics_buffer;
+        
+        self.grid_buffer = grid_buffer;
 
         Ok(())
     }
@@ -713,7 +806,7 @@ impl Renderer {
         })
     }
 
-    fn create_compute_pipeline(&self, device: &Device) -> (ComputePipeline, BindGroupLayout) {
+    fn create_compute_pipeline(&self, device: &Device) -> ((ComputePipeline, ComputePipeline, ComputePipeline, ComputePipeline), BindGroupLayout) {
         let shader = device.create_shader_module(ShaderModuleDescriptor {
             label: Some("Physics Compute Shader"),
             source: ShaderSource::Wgsl(PHYSICS_SHADER.into()),
@@ -755,6 +848,17 @@ impl Renderer {
                     },
                     count: None,
                 },
+                // Grid buffer (read-write)
+                BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: ShaderStages::COMPUTE,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -764,23 +868,55 @@ impl Renderer {
             push_constant_ranges: &[],
         });
 
-        let pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
-            label: Some("Physics Compute Pipeline"),
+        // Create multiple compute pipelines for different passes
+        let clear_grid_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
+            label: Some("Clear Grid Pipeline"),
             layout: Some(&pipeline_layout),
             module: &shader,
-            entry_point: Some("main"),
+            entry_point: Some("clear_grid"),
             cache: None,
             compilation_options: Default::default(),
         });
 
-        (pipeline, bind_group_layout)
+        let assign_grid_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
+            label: Some("Assign Grid Pipeline"),
+            layout: Some(&pipeline_layout),
+            module: &shader,
+            entry_point: Some("assign_to_grid"),
+            cache: None,
+            compilation_options: Default::default(),
+        });
+
+        let repulsion_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
+            label: Some("Repulsion Pipeline"),
+            layout: Some(&pipeline_layout),
+            module: &shader,
+            entry_point: Some("calculate_repulsion"),
+            cache: None,
+            compilation_options: Default::default(),
+        });
+
+        let integration_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
+            label: Some("Integration Pipeline"),
+            layout: Some(&pipeline_layout),
+            module: &shader,
+            entry_point: Some("integrate_physics"),
+            cache: None,
+            compilation_options: Default::default(),
+        });
+
+        // Return all pipelines
+        ((clear_grid_pipeline, assign_grid_pipeline, repulsion_pipeline, integration_pipeline), bind_group_layout)
     }
 
     pub fn integrate_physics(&mut self, nodes: &mut [NodeData], edges: &[EdgeData], delta_time: f32, damping_factor: f32, spring_constant: f32, rest_length: f32, repulsion_strength: f32, repulsion_radius: f32) -> Result<(), JsValue> {
-        if let (Some(device), Some(queue), Some(compute_pipeline), Some(physics_params_buffer), Some(compute_bind_group), Some(node_physics_buffer), Some(edge_physics_buffer)) = (
+        if let (Some(device), Some(queue), Some(clear_grid_pipeline), Some(assign_grid_pipeline), Some(repulsion_pipeline), Some(integration_pipeline), Some(physics_params_buffer), Some(compute_bind_group), Some(node_physics_buffer), Some(edge_physics_buffer)) = (
             &self.device,
             &self.queue,
-            &self.compute_pipeline,
+            &self.clear_grid_pipeline,
+            &self.assign_grid_pipeline,
+            &self.repulsion_pipeline,
+            &self.integration_pipeline,
             &self.physics_params_buffer,
             &self.compute_bind_group,
             &self.node_physics_buffer,
@@ -809,26 +945,40 @@ impl Renderer {
             ]).collect();
             queue.write_buffer(edge_physics_buffer, 0, bytemuck::cast_slice(&edge_data));
             
-            // Create command encoder and dispatch compute shader
+            // Create command encoder for three-pass grid-based physics
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
-                label: Some("Physics Compute Encoder"),
+                label: Some("Grid Physics Compute Encoder"),
             });
             
             {
                 let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
-                    label: Some("Physics Compute Pass"),
+                    label: Some("Grid Physics Compute Pass"),
                     timestamp_writes: None,
                 });
                 
-                compute_pass.set_pipeline(compute_pipeline);
+                // Pass 1: Clear grid
+                compute_pass.set_pipeline(clear_grid_pipeline);
                 compute_pass.set_bind_group(0, compute_bind_group, &[]);
+                compute_pass.dispatch_workgroups(16, 1, 1); // 1024 cells / 64 threads = 16 workgroups
                 
-                // Dispatch with workgroups of 64 threads each
-                let workgroup_count = (nodes.len() + 63) / 64;
-                compute_pass.dispatch_workgroups(workgroup_count as u32, 1, 1);
+                // Pass 2: Assign nodes to grid
+                compute_pass.set_pipeline(assign_grid_pipeline);
+                compute_pass.set_bind_group(0, compute_bind_group, &[]);
+                let node_workgroups = (nodes.len() + 63) / 64;
+                compute_pass.dispatch_workgroups(node_workgroups as u32, 1, 1);
+                
+                // Pass 3: Calculate repulsion using grid
+                compute_pass.set_pipeline(repulsion_pipeline);
+                compute_pass.set_bind_group(0, compute_bind_group, &[]);
+                compute_pass.dispatch_workgroups(node_workgroups as u32, 1, 1);
+                
+                // Pass 4: Integrate physics
+                compute_pass.set_pipeline(integration_pipeline);
+                compute_pass.set_bind_group(0, compute_bind_group, &[]);
+                compute_pass.dispatch_workgroups(node_workgroups as u32, 1, 1);
             }
             
-            // Submit compute work for physics integration
+            // Submit all compute work
             queue.submit(std::iter::once(encoder.finish()));
             
             // Physics integration completed on GPU
