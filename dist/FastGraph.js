@@ -103,6 +103,10 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
     const cameraRef = useRef({ x: 0, y: 0, zoom: 1 });
     const isDraggingRef = useRef(false);
     const lastMousePosRef = useRef({ x: 0, y: 0 });
+    // Pan mode state
+    const [isPanMode, setIsPanMode] = useState(false);
+    const [isShiftPressed, setIsShiftPressed] = useState(false);
+    const [canvasFocused, setCanvasFocused] = useState(false);
     const componentId = useRef(`fast-graph-${Math.random().toString(36).substr(2, 9)}-${Date.now()}`);
     const initialColorsRef = useRef({ color1, color2 });
     const mountedRef = useRef(true);
@@ -248,15 +252,48 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
             }
         }
     }, [isInitialized]);
+    // Keyboard event handlers for shift key
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Shift') {
+                setIsShiftPressed(true);
+            }
+        };
+        const handleKeyUp = (e) => {
+            if (e.key === 'Shift') {
+                setIsShiftPressed(false);
+            }
+        };
+        const handleWheel = (e) => {
+            if (canvasFocused && containerRef.current?.contains(e.target)) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        document.addEventListener('wheel', handleWheel, { passive: false });
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+            document.removeEventListener('wheel', handleWheel);
+        };
+    }, [canvasFocused]);
     // Camera control handlers
     const handleMouseDown = useCallback((e) => {
         if (!canvas)
             return;
-        isDraggingRef.current = true;
-        lastMousePosRef.current = { x: e.clientX, y: e.clientY };
-    }, [canvas]);
+        // Only allow panning if pan mode is active or shift is pressed
+        if (isPanMode || isShiftPressed) {
+            isDraggingRef.current = true;
+            lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+        }
+    }, [canvas, isPanMode, isShiftPressed]);
     const handleMouseMove = useCallback((e) => {
         if (!isDraggingRef.current || !canvas || !rendererRef.current)
+            return;
+        // Only pan if pan mode is active or shift is pressed
+        if (!(isPanMode || isShiftPressed))
             return;
         const deltaX = e.clientX - lastMousePosRef.current.x;
         const deltaY = e.clientY - lastMousePosRef.current.y;
@@ -270,10 +307,10 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
         try {
             rendererRef.current.set_camera_position(cameraRef.current.x, cameraRef.current.y);
         }
-        catch (err) {
-            console.error('Failed to update camera position:', err);
+        catch (error) {
+            console.error('Error updating camera position:', error);
         }
-    }, [canvas]);
+    }, [canvas, isPanMode, isShiftPressed]);
     const handleMouseUp = useCallback(() => {
         isDraggingRef.current = false;
     }, []);
@@ -314,14 +351,14 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
     }, []);
     // Touch event handlers for mobile
     const handleTouchStart = useCallback((e) => {
-        if (e.touches.length === 1) {
+        if (e.touches.length === 1 && (isPanMode || isShiftPressed)) {
             const touch = e.touches[0];
             isDraggingRef.current = true;
             lastMousePosRef.current = { x: touch.clientX, y: touch.clientY };
         }
-    }, []);
+    }, [isPanMode, isShiftPressed]);
     const handleTouchMove = useCallback((e) => {
-        if (e.touches.length === 1 && isDraggingRef.current && canvas && rendererRef.current) {
+        if (e.touches.length === 1 && isDraggingRef.current && canvas && rendererRef.current && (isPanMode || isShiftPressed)) {
             const touch = e.touches[0];
             const deltaX = touch.clientX - lastMousePosRef.current.x;
             const deltaY = touch.clientY - lastMousePosRef.current.y;
@@ -334,11 +371,11 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
             try {
                 rendererRef.current.set_camera_position(cameraRef.current.x, cameraRef.current.y);
             }
-            catch (err) {
-                console.error('Failed to update camera position:', err);
+            catch (error) {
+                console.error('Error updating camera position:', error);
             }
         }
-    }, [canvas]);
+    }, [canvas, isPanMode, isShiftPressed]);
     const handleTouchEnd = useCallback(() => {
         isDraggingRef.current = false;
     }, []);
@@ -609,7 +646,12 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
     };
     // Always render canvas, but show overlays for different states
     return (React.createElement("div", { ref: containerRef, style: containerStyle },
-        React.createElement("canvas", { ref: canvasRef, className: className, style: canvasStyle, onMouseDown: handleMouseDown, onMouseMove: handleMouseMove, onMouseUp: handleMouseUp, onMouseLeave: handleMouseUp, onTouchStart: handleTouchStart, onTouchMove: handleTouchMove, onTouchEnd: handleTouchEnd }),
+        React.createElement("canvas", { ref: canvasRef, className: className, style: {
+                ...canvasStyle,
+                cursor: (isPanMode || isShiftPressed) ? (isDraggingRef.current ? 'grabbing' : 'grab') : 'default',
+                outline: canvasFocused ? '2px solid rgba(0, 150, 255, 0.5)' : 'none',
+                outlineOffset: '2px'
+            }, tabIndex: 0, onMouseDown: handleMouseDown, onMouseMove: handleMouseMove, onMouseUp: handleMouseUp, onMouseLeave: handleMouseUp, onTouchStart: handleTouchStart, onTouchMove: handleTouchMove, onTouchEnd: handleTouchEnd, onFocus: () => setCanvasFocused(true), onBlur: () => setCanvasFocused(false) }),
         isGraphMode && isInitialized && !error && (React.createElement("div", { style: {
                 position: 'absolute',
                 top: '10px',
@@ -656,14 +698,69 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                     borderRadius: '4px',
                     backgroundColor: 'rgba(255, 255, 255, 0.9)',
                     color: '#333',
+                    fontSize: '16px',
                     cursor: 'pointer',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
-                }, title: "Reset Camera" }, "\u2302"))),
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+                }, title: "Reset Camera" }, "\uD83C\uDFE0"))),
+        isGraphMode && isInitialized && !error && (React.createElement("div", { style: {
+                position: 'absolute',
+                bottom: '10px',
+                right: '10px',
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: '8px',
+                zIndex: 20
+            } },
+            React.createElement("button", { onClick: () => setIsPanMode(!isPanMode), style: {
+                    padding: '8px 12px',
+                    border: 'none',
+                    borderRadius: '6px',
+                    backgroundColor: (isPanMode || isShiftPressed) ? 'rgba(0, 150, 255, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+                    color: (isPanMode || isShiftPressed) ? 'white' : '#333',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                    transition: 'all 0.2s ease',
+                    outline: isShiftPressed ? '2px solid rgba(255, 193, 7, 0.8)' : 'none'
+                }, title: isShiftPressed ? "Pan Mode: SHIFT HELD (Click to toggle manual mode)" :
+                    isPanMode ? "Pan Mode: ON (Click to disable)" :
+                        "Pan Mode: OFF (Click to enable)" },
+                "\uD83D\uDDB1\uFE0F ",
+                (isPanMode || isShiftPressed) ? 'PAN ON' : 'PAN OFF'))),
+        isGraphMode && isInitialized && !error && (React.createElement("div", { style: {
+                position: 'absolute',
+                top: '10px',
+                left: '10px',
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                color: 'white',
+                padding: '12px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontFamily: 'monospace',
+                lineHeight: '1.4',
+                maxWidth: '200px',
+                zIndex: 20,
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+            } },
+            React.createElement("div", { style: { fontWeight: 'bold', marginBottom: '8px', color: '#4CAF50' } }, "\uD83C\uDFAE Pan Controls"),
+            React.createElement("div", { style: { marginBottom: '4px' } },
+                React.createElement("span", { style: { color: '#FFC107' } }, "Hold Shift"),
+                " to enable panning"),
+            React.createElement("div", { style: { marginBottom: '4px' } },
+                React.createElement("span", { style: { color: '#2196F3' } }, "PAN button"),
+                " toggles manual mode"),
+            React.createElement("div", { style: { marginBottom: '4px' } },
+                React.createElement("span", { style: { color: '#FF9800' } }, "Focus canvas"),
+                " = no page scroll"),
+            React.createElement("div", { style: { color: '#9E9E9E', fontSize: '10px', marginTop: '6px' } }, "Click canvas to focus"))),
         !isActive && (React.createElement("div", { style: {
                 position: 'absolute',
                 top: 0,

@@ -175,6 +175,11 @@ export const FastGraph: React.FC<FastGraphProps> = ({
   const cameraRef = useRef<CameraState>({ x: 0, y: 0, zoom: 1 });
   const isDraggingRef = useRef(false);
   const lastMousePosRef = useRef({ x: 0, y: 0 });
+  
+  // Pan mode state
+  const [isPanMode, setIsPanMode] = useState(false);
+  const [isShiftPressed, setIsShiftPressed] = useState(false);
+  const [canvasFocused, setCanvasFocused] = useState(false);
 
   const componentId = useRef(`fast-graph-${Math.random().toString(36).substr(2, 9)}-${Date.now()}`);
   const initialColorsRef = useRef({ color1, color2 });
@@ -347,18 +352,55 @@ export const FastGraph: React.FC<FastGraphProps> = ({
     }
   }, [isInitialized]);
 
+  // Keyboard event handlers for shift key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        setIsShiftPressed(true);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        setIsShiftPressed(false);
+      }
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      if (canvasFocused && containerRef.current?.contains(e.target as Node)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    document.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      document.removeEventListener('wheel', handleWheel);
+    };
+  }, [canvasFocused]);
+
   // Camera control handlers
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvas) return;
     
-    isDraggingRef.current = true;
-    lastMousePosRef.current = { x: e.clientX, y: e.clientY };
-    
+    // Only allow panning if pan mode is active or shift is pressed
+    if (isPanMode || isShiftPressed) {
+      isDraggingRef.current = true;
+      lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+    }
 
-  }, [canvas]);
+  }, [canvas, isPanMode, isShiftPressed]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDraggingRef.current || !canvas || !rendererRef.current) return;
+    
+    // Only pan if pan mode is active or shift is pressed
+    if (!(isPanMode || isShiftPressed)) return;
 
     const deltaX = e.clientX - lastMousePosRef.current.x;
     const deltaY = e.clientY - lastMousePosRef.current.y;
@@ -375,12 +417,10 @@ export const FastGraph: React.FC<FastGraphProps> = ({
     
     try {
       rendererRef.current.set_camera_position(cameraRef.current.x, cameraRef.current.y);
-    } catch (err) {
-      console.error('Failed to update camera position:', err);
+    } catch (error) {
+      console.error('Error updating camera position:', error);
     }
-    
-
-  }, [canvas]);
+  }, [canvas, isPanMode, isShiftPressed]);
 
   const handleMouseUp = useCallback(() => {
     isDraggingRef.current = false;
@@ -426,16 +466,15 @@ export const FastGraph: React.FC<FastGraphProps> = ({
 
   // Touch event handlers for mobile
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
-    if (e.touches.length === 1) {
+    if (e.touches.length === 1 && (isPanMode || isShiftPressed)) {
       const touch = e.touches[0];
       isDraggingRef.current = true;
       lastMousePosRef.current = { x: touch.clientX, y: touch.clientY };
     }
-
-  }, []);
+  }, [isPanMode, isShiftPressed]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
-    if (e.touches.length === 1 && isDraggingRef.current && canvas && rendererRef.current) {
+    if (e.touches.length === 1 && isDraggingRef.current && canvas && rendererRef.current && (isPanMode || isShiftPressed)) {
       const touch = e.touches[0];
       const deltaX = touch.clientX - lastMousePosRef.current.x;
       const deltaY = touch.clientY - lastMousePosRef.current.y;
@@ -451,12 +490,11 @@ export const FastGraph: React.FC<FastGraphProps> = ({
       
       try {
         rendererRef.current.set_camera_position(cameraRef.current.x, cameraRef.current.y);
-      } catch (err) {
-        console.error('Failed to update camera position:', err);
+      } catch (error) {
+        console.error('Error updating camera position:', error);
       }
     }
-
-  }, [canvas]);
+  }, [canvas, isPanMode, isShiftPressed]);
 
   const handleTouchEnd = useCallback(() => {
     isDraggingRef.current = false;
@@ -768,7 +806,13 @@ export const FastGraph: React.FC<FastGraphProps> = ({
       <canvas
         ref={canvasRef}
         className={className}
-        style={canvasStyle}
+        style={{
+          ...canvasStyle,
+          cursor: (isPanMode || isShiftPressed) ? (isDraggingRef.current ? 'grabbing' : 'grab') : 'default',
+          outline: canvasFocused ? '2px solid rgba(0, 150, 255, 0.5)' : 'none',
+          outlineOffset: '2px'
+        }}
+        tabIndex={0}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -776,6 +820,8 @@ export const FastGraph: React.FC<FastGraphProps> = ({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onFocus={() => setCanvasFocused(true)}
+        onBlur={() => setCanvasFocused(false)}
       />
 
       {/* Camera Control Buttons */}
@@ -840,18 +886,93 @@ export const FastGraph: React.FC<FastGraphProps> = ({
               borderRadius: '4px',
               backgroundColor: 'rgba(255, 255, 255, 0.9)',
               color: '#333',
+              fontSize: '16px',
               cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
             }}
             title="Reset Camera"
           >
-            ⌂
+            🏠
           </button>
+        </div>
+      )}
+
+      {/* Pan Mode Indicator */}
+      {isGraphMode && isInitialized && !error && (
+        <div style={{
+          position: 'absolute',
+          bottom: '10px',
+          right: '10px',
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: '8px',
+          zIndex: 20
+        }}>
+          <button
+            onClick={() => setIsPanMode(!isPanMode)}
+            style={{
+              padding: '8px 12px',
+              border: 'none',
+              borderRadius: '6px',
+              backgroundColor: (isPanMode || isShiftPressed) ? 'rgba(0, 150, 255, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+              color: (isPanMode || isShiftPressed) ? 'white' : '#333',
+              fontSize: '12px',
+              fontWeight: '500',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+              transition: 'all 0.2s ease',
+              outline: isShiftPressed ? '2px solid rgba(255, 193, 7, 0.8)' : 'none'
+            }}
+            title={
+              isShiftPressed ? "Pan Mode: SHIFT HELD (Click to toggle manual mode)" :
+              isPanMode ? "Pan Mode: ON (Click to disable)" : 
+              "Pan Mode: OFF (Click to enable)"
+            }
+          >
+            🖱️ {(isPanMode || isShiftPressed) ? 'PAN ON' : 'PAN OFF'}
+          </button>
+        </div>
+      )}
+
+      {/* Help Panel for Pan Controls */}
+      {isGraphMode && isInitialized && !error && (
+        <div style={{
+          position: 'absolute',
+          top: '10px',
+          left: '10px',
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          color: 'white',
+          padding: '12px',
+          borderRadius: '6px',
+          fontSize: '12px',
+          fontFamily: 'monospace',
+          lineHeight: '1.4',
+          maxWidth: '200px',
+          zIndex: 20,
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+        }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#4CAF50' }}>
+            🎮 Pan Controls
+          </div>
+          <div style={{ marginBottom: '4px' }}>
+            <span style={{ color: '#FFC107' }}>Hold Shift</span> to enable panning
+          </div>
+          <div style={{ marginBottom: '4px' }}>
+            <span style={{ color: '#2196F3' }}>PAN button</span> toggles manual mode
+          </div>
+          <div style={{ marginBottom: '4px' }}>
+            <span style={{ color: '#FF9800' }}>Focus canvas</span> = no page scroll
+          </div>
+          <div style={{ color: '#9E9E9E', fontSize: '10px', marginTop: '6px' }}>
+            Click canvas to focus
+          </div>
         </div>
       )}
       

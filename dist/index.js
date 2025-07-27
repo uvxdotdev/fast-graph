@@ -490,6 +490,9 @@ var FastGraph = ({
   const cameraRef = import_react.useRef({ x: 0, y: 0, zoom: 1 });
   const isDraggingRef = import_react.useRef(false);
   const lastMousePosRef = import_react.useRef({ x: 0, y: 0 });
+  const [isPanMode, setIsPanMode] = import_react.useState(false);
+  const [isShiftPressed, setIsShiftPressed] = import_react.useState(false);
+  const [canvasFocused, setCanvasFocused] = import_react.useState(false);
   const componentId = import_react.useRef(`fast-graph-${Math.random().toString(36).substr(2, 9)}-${Date.now()}`);
   const initialColorsRef = import_react.useRef({ color1, color2 });
   const mountedRef = import_react.useRef(true);
@@ -601,14 +604,44 @@ var FastGraph = ({
       }
     }
   }, [isInitialized]);
+  import_react.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Shift") {
+        setIsShiftPressed(true);
+      }
+    };
+    const handleKeyUp = (e) => {
+      if (e.key === "Shift") {
+        setIsShiftPressed(false);
+      }
+    };
+    const handleWheel = (e) => {
+      if (canvasFocused && containerRef.current?.contains(e.target)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    document.addEventListener("wheel", handleWheel, { passive: false });
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      document.removeEventListener("wheel", handleWheel);
+    };
+  }, [canvasFocused]);
   const handleMouseDown = import_react.useCallback((e) => {
     if (!canvas)
       return;
-    isDraggingRef.current = true;
-    lastMousePosRef.current = { x: e.clientX, y: e.clientY };
-  }, [canvas]);
+    if (isPanMode || isShiftPressed) {
+      isDraggingRef.current = true;
+      lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+    }
+  }, [canvas, isPanMode, isShiftPressed]);
   const handleMouseMove = import_react.useCallback((e) => {
     if (!isDraggingRef.current || !canvas || !rendererRef.current)
+      return;
+    if (!(isPanMode || isShiftPressed))
       return;
     const deltaX = e.clientX - lastMousePosRef.current.x;
     const deltaY = e.clientY - lastMousePosRef.current.y;
@@ -620,10 +653,10 @@ var FastGraph = ({
     lastMousePosRef.current = { x: e.clientX, y: e.clientY };
     try {
       rendererRef.current.set_camera_position(cameraRef.current.x, cameraRef.current.y);
-    } catch (err) {
-      console.error("Failed to update camera position:", err);
+    } catch (error2) {
+      console.error("Error updating camera position:", error2);
     }
-  }, [canvas]);
+  }, [canvas, isPanMode, isShiftPressed]);
   const handleMouseUp = import_react.useCallback(() => {
     isDraggingRef.current = false;
   }, []);
@@ -660,14 +693,14 @@ var FastGraph = ({
     }
   }, []);
   const handleTouchStart = import_react.useCallback((e) => {
-    if (e.touches.length === 1) {
+    if (e.touches.length === 1 && (isPanMode || isShiftPressed)) {
       const touch = e.touches[0];
       isDraggingRef.current = true;
       lastMousePosRef.current = { x: touch.clientX, y: touch.clientY };
     }
-  }, []);
+  }, [isPanMode, isShiftPressed]);
   const handleTouchMove = import_react.useCallback((e) => {
-    if (e.touches.length === 1 && isDraggingRef.current && canvas && rendererRef.current) {
+    if (e.touches.length === 1 && isDraggingRef.current && canvas && rendererRef.current && (isPanMode || isShiftPressed)) {
       const touch = e.touches[0];
       const deltaX = touch.clientX - lastMousePosRef.current.x;
       const deltaY = touch.clientY - lastMousePosRef.current.y;
@@ -679,11 +712,11 @@ var FastGraph = ({
       lastMousePosRef.current = { x: touch.clientX, y: touch.clientY };
       try {
         rendererRef.current.set_camera_position(cameraRef.current.x, cameraRef.current.y);
-      } catch (err) {
-        console.error("Failed to update camera position:", err);
+      } catch (error2) {
+        console.error("Error updating camera position:", error2);
       }
     }
-  }, [canvas]);
+  }, [canvas, isPanMode, isShiftPressed]);
   const handleTouchEnd = import_react.useCallback(() => {
     isDraggingRef.current = false;
   }, []);
@@ -925,14 +958,22 @@ var FastGraph = ({
   }, /* @__PURE__ */ import_react.default.createElement("canvas", {
     ref: canvasRef,
     className,
-    style: canvasStyle,
+    style: {
+      ...canvasStyle,
+      cursor: isPanMode || isShiftPressed ? isDraggingRef.current ? "grabbing" : "grab" : "default",
+      outline: canvasFocused ? "2px solid rgba(0, 150, 255, 0.5)" : "none",
+      outlineOffset: "2px"
+    },
+    tabIndex: 0,
     onMouseDown: handleMouseDown,
     onMouseMove: handleMouseMove,
     onMouseUp: handleMouseUp,
     onMouseLeave: handleMouseUp,
     onTouchStart: handleTouchStart,
     onTouchMove: handleTouchMove,
-    onTouchEnd: handleTouchEnd
+    onTouchEnd: handleTouchEnd,
+    onFocus: () => setCanvasFocused(true),
+    onBlur: () => setCanvasFocused(false)
   }), isGraphMode && isInitialized && !error && /* @__PURE__ */ import_react.default.createElement("div", {
     style: {
       position: "absolute",
@@ -988,16 +1029,77 @@ var FastGraph = ({
       borderRadius: "4px",
       backgroundColor: "rgba(255, 255, 255, 0.9)",
       color: "#333",
+      fontSize: "16px",
       cursor: "pointer",
-      fontSize: "12px",
-      fontWeight: "bold",
-      boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
       display: "flex",
       alignItems: "center",
-      justifyContent: "center"
+      justifyContent: "center",
+      boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)"
     },
     title: "Reset Camera"
-  }, "⌂")), !isActive && /* @__PURE__ */ import_react.default.createElement("div", {
+  }, "\uD83C\uDFE0")), isGraphMode && isInitialized && !error && /* @__PURE__ */ import_react.default.createElement("div", {
+    style: {
+      position: "absolute",
+      bottom: "10px",
+      right: "10px",
+      display: "flex",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: "8px",
+      zIndex: 20
+    }
+  }, /* @__PURE__ */ import_react.default.createElement("button", {
+    onClick: () => setIsPanMode(!isPanMode),
+    style: {
+      padding: "8px 12px",
+      border: "none",
+      borderRadius: "6px",
+      backgroundColor: isPanMode || isShiftPressed ? "rgba(0, 150, 255, 0.9)" : "rgba(255, 255, 255, 0.9)",
+      color: isPanMode || isShiftPressed ? "white" : "#333",
+      fontSize: "12px",
+      fontWeight: "500",
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      gap: "4px",
+      boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+      transition: "all 0.2s ease",
+      outline: isShiftPressed ? "2px solid rgba(255, 193, 7, 0.8)" : "none"
+    },
+    title: isShiftPressed ? "Pan Mode: SHIFT HELD (Click to toggle manual mode)" : isPanMode ? "Pan Mode: ON (Click to disable)" : "Pan Mode: OFF (Click to enable)"
+  }, "\uD83D\uDDB1️ ", isPanMode || isShiftPressed ? "PAN ON" : "PAN OFF")), isGraphMode && isInitialized && !error && /* @__PURE__ */ import_react.default.createElement("div", {
+    style: {
+      position: "absolute",
+      top: "10px",
+      left: "10px",
+      backgroundColor: "rgba(0, 0, 0, 0.8)",
+      color: "white",
+      padding: "12px",
+      borderRadius: "6px",
+      fontSize: "12px",
+      fontFamily: "monospace",
+      lineHeight: "1.4",
+      maxWidth: "200px",
+      zIndex: 20,
+      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)"
+    }
+  }, /* @__PURE__ */ import_react.default.createElement("div", {
+    style: { fontWeight: "bold", marginBottom: "8px", color: "#4CAF50" }
+  }, "\uD83C\uDFAE Pan Controls"), /* @__PURE__ */ import_react.default.createElement("div", {
+    style: { marginBottom: "4px" }
+  }, /* @__PURE__ */ import_react.default.createElement("span", {
+    style: { color: "#FFC107" }
+  }, "Hold Shift"), " to enable panning"), /* @__PURE__ */ import_react.default.createElement("div", {
+    style: { marginBottom: "4px" }
+  }, /* @__PURE__ */ import_react.default.createElement("span", {
+    style: { color: "#2196F3" }
+  }, "PAN button"), " toggles manual mode"), /* @__PURE__ */ import_react.default.createElement("div", {
+    style: { marginBottom: "4px" }
+  }, /* @__PURE__ */ import_react.default.createElement("span", {
+    style: { color: "#FF9800" }
+  }, "Focus canvas"), " = no page scroll"), /* @__PURE__ */ import_react.default.createElement("div", {
+    style: { color: "#9E9E9E", fontSize: "10px", marginTop: "6px" }
+  }, "Click canvas to focus")), !isActive && /* @__PURE__ */ import_react.default.createElement("div", {
     style: {
       position: "absolute",
       top: 0,
