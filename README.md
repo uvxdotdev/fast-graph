@@ -32,12 +32,13 @@ bun add @uvxdotdev/fastgraph
 
 ## 🎯 Quick Start
 
-### 1. Create a New React App
+### 1. Create a New Vite React App
 
 ```bash
-# Create a new React app with TypeScript
-npx create-react-app my-graph-app --template typescript
+# Create a new Vite React app with TypeScript
+npm create vite@latest my-graph-app -- --template react-ts
 cd my-graph-app
+npm install
 ```
 
 ### 2. Install FastGraph
@@ -47,7 +48,36 @@ cd my-graph-app
 npm install @uvxdotdev/fastgraph
 ```
 
-### 3. Replace App.tsx
+### 3. Configure Vite for WebGPU
+
+Create `vite.config.ts` in your project root:
+
+```typescript
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    headers: {
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Opener-Policy': 'same-origin',
+    },
+    fs: {
+      allow: ['..', '.']
+    }
+  },
+  optimizeDeps: {
+    exclude: ['@uvxdotdev/fastgraph']
+  },
+  assetsInclude: ['**/*.wasm'],
+  define: {
+    global: 'globalThis',
+  }
+})
+```
+
+### 4. Replace App.tsx
 
 Replace the contents of `src/App.tsx` with:
 
@@ -110,19 +140,19 @@ function App() {
 export default App;
 ```
 
-### 4. Start the Development Server
+### 5. Start the Development Server
 
 ```bash
-npm start
+npm run dev
 ```
 
-Your FastGraph app will open at `http://localhost:3000` with:
+Your FastGraph app will open at `http://localhost:5173` with:
 - ✅ Interactive graph visualization
 - ✅ GPU-accelerated physics simulation  
 - ✅ Drag nodes, pan, and zoom controls
 - ✅ Real-time FPS counter
 
-### 5. Enable WebGPU (if needed)
+### 6. Enable WebGPU (if needed)
 
 If you see "WebGPU Required", enable it in your browser:
 
@@ -326,40 +356,45 @@ function ResponsiveGraph() {
 }
 ```
 
-## ⚙️ Vite Configuration
+## ⚙️ Why Vite Configuration is Required
 
-FastGraph requires special Vite configuration for WebGPU and WASM support:
+The Vite configuration from the Quick Start is **essential** for FastGraph to work properly. Here's why each setting matters:
 
+### 🔒 **CORS Headers**
 ```typescript
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    headers: {
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-      'Cross-Origin-Opener-Policy': 'same-origin',
-    },
-    fs: {
-      allow: ['..', '.']
-    }
-  },
-  optimizeDeps: {
-    exclude: ['@uvxdotdev/fastgraph']
-  },
-  assetsInclude: ['**/*.wasm'],
-  define: {
-    global: 'globalThis',
-  }
-})
+headers: {
+  'Cross-Origin-Embedder-Policy': 'require-corp',
+  'Cross-Origin-Opener-Policy': 'same-origin',
+}
 ```
+- **Required for WebGPU**: SharedArrayBuffer and WebAssembly need these security headers
+- **Browser Requirement**: Modern browsers enforce these for advanced web APIs
 
-### 🚨 Alternative: Use Bun Development Server
+### 📁 **File System Access**
+```typescript
+fs: {
+  allow: ['..', '.']
+}
+```
+- **WASM Loading**: Allows Vite to serve WebAssembly files from node_modules
+- **Package Access**: Enables loading FastGraph's compiled Rust code
 
-For the best development experience with WASM:
+### ⚡ **Build Optimization**
+```typescript
+optimizeDeps: {
+  exclude: ['@uvxdotdev/fastgraph']
+},
+assetsInclude: ['**/*.wasm']
+```
+- **Prevents Pre-bundling**: WASM modules need special handling
+- **Asset Recognition**: Treats .wasm files with correct MIME types
+
+### 🚨 **Alternative: Bun Development Server**
+
+If you encounter Vite issues, Bun handles WASM perfectly out of the box:
 
 ```bash
+# Instead of: npm run dev
 bunx serve . -p 3000
 ```
 
