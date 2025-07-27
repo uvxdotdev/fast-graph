@@ -32,35 +32,108 @@ bun add @uvxdotdev/fastgraph
 
 ## 🎯 Quick Start
 
+### 1. Create a New React App
+
+```bash
+# Create a new React app with TypeScript
+npx create-react-app my-graph-app --template typescript
+cd my-graph-app
+```
+
+### 2. Install FastGraph
+
+```bash
+# Install the FastGraph package
+npm install @uvxdotdev/fastgraph
+```
+
+### 3. Replace App.tsx
+
+Replace the contents of `src/App.tsx` with:
+
 ```tsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { FastGraph } from '@uvxdotdev/fastgraph';
-
-const nodes = [
-  { id: '1', x: 0.3, y: 0.3, color: '#ff6b6b', size: 8 },
-  { id: '2', x: 0.7, y: 0.4, color: '#4ecdc4', size: 12 },
-  { id: '3', x: 0.5, y: 0.7, color: '#45b7d1', size: 10 }
-];
-
-const edges = [
-  { source: '1', target: '2', color: '#666', width: 2 },
-  { source: '2', target: '3', color: '#999', width: 1.5 }
-];
+import './App.css';
 
 function App() {
+  const [hasWebGPU, setHasWebGPU] = useState(false);
+
+  useEffect(() => {
+    setHasWebGPU('gpu' in navigator);
+  }, []);
+
+  const nodes = [
+    { id: '1', x: 0.3, y: 0.3, color: '#ff6b6b', size: 12 },
+    { id: '2', x: 0.7, y: 0.4, color: '#4ecdc4', size: 15 },
+    { id: '3', x: 0.5, y: 0.7, color: '#45b7d1', size: 10 },
+    { id: '4', x: 0.2, y: 0.6, color: '#96ceb4', size: 8 }
+  ];
+
+  const edges = [
+    { source: '1', target: '2', color: '#666', width: 2 },
+    { source: '2', target: '3', color: '#999', width: 1.5 },
+    { source: '3', target: '4', color: '#666', width: 2 }
+  ];
+
+  if (!hasWebGPU) {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center' }}>
+        <h2>⚠️ WebGPU Required</h2>
+        <p>Please use Chrome 113+ or Edge 113+ with WebGPU enabled.</p>
+      </div>
+    );
+  }
+
   return (
-    <FastGraph 
-      nodes={nodes}
-      edges={edges}
-      width={800} 
-      height={600}
-      enablePhysics={true}
-      useGPUAcceleration={true}
-    />
+    <div className="App">
+      <header style={{ padding: '20px', textAlign: 'center' }}>
+        <h1>🚀 My FastGraph App</h1>
+      </header>
+      
+      <main style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
+        <FastGraph 
+          nodes={nodes}
+          edges={edges}
+          width={800} 
+          height={600}
+          enablePhysics={true}
+          useGPUAcceleration={true}
+          dampingFactor={0.98}
+          springConstant={0.015}
+        />
+      </main>
+    </div>
   );
 }
 
 export default App;
+```
+
+### 4. Start the Development Server
+
+```bash
+npm start
+```
+
+Your FastGraph app will open at `http://localhost:3000` with:
+- ✅ Interactive graph visualization
+- ✅ GPU-accelerated physics simulation  
+- ✅ Drag nodes, pan, and zoom controls
+- ✅ Real-time FPS counter
+
+### 5. Enable WebGPU (if needed)
+
+If you see "WebGPU Required", enable it in your browser:
+
+**Chrome/Edge:**
+```
+chrome://flags/#enable-unsafe-webgpu
+```
+
+**Firefox:**
+```
+about:config → dom.webgpu.enabled = true
 ```
 
 ## 📖 API Reference
