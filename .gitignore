@@ -3,3 +3,4 @@ node_modules
 **/target/
 test-app
 MetallicWGPU
+my-graph-app
