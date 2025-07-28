@@ -1,5 +1,5 @@
-import React, { useRef, useEffect, useCallback, useState } from 'react';
-import { normalizedToCanvas, hexToRgba, updateGraphPhysics } from './utils';
+import React, { useRef, useEffect, useCallback, useState } from "react";
+import { normalizedToCanvas, hexToRgba, updateGraphPhysics, } from "./utils";
 // Singleton WebGPU manager - only one component can be active
 let activeComponentId = null;
 const registerComponent = (id) => {
@@ -30,29 +30,31 @@ const loadWasmModule = async () => {
             try {
                 // Strategy 1: Direct relative import (development/local build)
                 // @ts-ignore - WASM module will be available at runtime
-                module = await import('./pkg/fast_graph_core.js');
+                module = await import("./pkg/fast_graph_core.js");
             }
             catch (relativeError) {
                 try {
                     // Strategy 2: Try resolving from the package root
                     // @ts-ignore - Dynamic import for npm package
-                    module = await import('@uvxdotdev/fastgraph/dist/pkg/fast_graph_core.js');
+                    // module = await import(
+                    // "@uvxdotdev/fastgraph/dist/pkg/fast_graph_core.js"
+                    // );
                 }
                 catch (packageError) {
                     try {
                         // Strategy 3: Use current module URL as base for resolution
                         const currentScript = document.currentScript;
                         const baseUrl = currentScript?.src || window.location.href;
-                        const wasmUrl = new URL('pkg/fast_graph_core.js', baseUrl).href;
+                        const wasmUrl = new URL("pkg/fast_graph_core.js", baseUrl).href;
                         // @ts-ignore - Dynamic URL-based import
                         module = await import(wasmUrl);
                     }
                     catch (urlError) {
                         // Strategy 4: Try common CDN/package paths
                         const possiblePaths = [
-                            '/node_modules/@uvxdotdev/fastgraph/dist/pkg/fast_graph_core.js',
-                            './node_modules/@uvxdotdev/fastgraph/dist/pkg/fast_graph_core.js',
-                            '../pkg/fast_graph_core.js'
+                            "/node_modules/@uvxdotdev/fastgraph/dist/pkg/fast_graph_core.js",
+                            "./node_modules/@uvxdotdev/fastgraph/dist/pkg/fast_graph_core.js",
+                            "../pkg/fast_graph_core.js",
                         ];
                         for (const path of possiblePaths) {
                             try {
@@ -65,7 +67,7 @@ const loadWasmModule = async () => {
                             }
                         }
                         if (!module) {
-                            throw new Error('All WASM import strategies failed');
+                            throw new Error("All WASM import strategies failed");
                         }
                     }
                 }
@@ -76,14 +78,14 @@ const loadWasmModule = async () => {
             return module;
         }
         catch (error) {
-            console.error('Failed to load WASM module:', error);
+            console.error("Failed to load WASM module:", error);
             wasmModulePromise = null; // Reset promise to allow retry
             throw new Error(`Failed to load FastGraph WASM module: ${error instanceof Error ? error.message : String(error)}`);
         }
     })();
     return wasmModulePromise;
 };
-export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 = '#0000ff', width = 800, height = 600, className, style, enablePhysics = false, dampingFactor = 0.99, springConstant = 0.01, restLength = 0.1, useGPUAcceleration = false, }) => {
+export const FastGraph = ({ nodes = [], edges = [], color1 = "#ff0000", color2 = "#0000ff", width = 800, height = 600, className, style, enablePhysics = false, dampingFactor = 0.99, springConstant = 0.01, restLength = 0.1, useGPUAcceleration = false, }) => {
     const [canvas, setCanvas] = useState(null);
     const containerRef = useRef(null);
     const rendererRef = useRef(null);
@@ -172,7 +174,7 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
     }, [animatedNodes, canvas]);
     // Callback ref that triggers when canvas is actually mounted
     const canvasRef = useCallback((canvasElement) => {
-        console.log('Canvas ref callback:', !!canvasElement);
+        console.log("Canvas ref callback:", !!canvasElement);
         setCanvas(canvasElement);
     }, []);
     // Update initial colors ref when props change
@@ -182,10 +184,10 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
     // One-time debug log for sample node positions
     useEffect(() => {
         if (animatedNodes.length > 0) {
-            console.log('📍 Sample node positions:', animatedNodes.slice(0, 3).map((node, i) => ({
+            console.log("📍 Sample node positions:", animatedNodes.slice(0, 3).map((node, i) => ({
                 index: i,
                 pos: { x: node.x, y: node.y },
-                size: node.size
+                size: node.size,
             })));
         }
     }, [animatedNodes.length > 0]);
@@ -213,27 +215,29 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                 ? (currentTime - lastFrameTimeRef.current) / 1000
                 : 0.016; // Default to ~60fps
             lastFrameTimeRef.current = currentTime;
-            setAnimatedNodes(prevNodes => {
-                const hasVelocity = prevNodes.some(node => (node.vx && node.vx !== 0) || (node.vy && node.vy !== 0));
+            setAnimatedNodes((prevNodes) => {
+                const hasVelocity = prevNodes.some((node) => (node.vx && node.vx !== 0) || (node.vy && node.vy !== 0));
                 if (!hasVelocity)
                     return prevNodes;
                 // Try GPU acceleration if enabled and available
-                if (useGPUAcceleration && rendererRef.current && typeof rendererRef.current.integrate_physics === 'function') {
+                if (useGPUAcceleration &&
+                    rendererRef.current &&
+                    typeof rendererRef.current.integrate_physics === "function") {
                     try {
                         // For now, skip GPU physics when dragging to avoid conflicts
-                        if (draggedNodeIndexRef.current !== null && draggedNodeIndexRef.current !== undefined) {
+                        if (draggedNodeIndexRef.current !== null &&
+                            draggedNodeIndexRef.current !== undefined) {
                             // Fall through to CPU physics
                         }
                         else {
                             rendererRef.current.integrate_physics(deltaTime * 0.01, // Convert to appropriate time scale
-                            dampingFactor, springConstant, restLength, 0.001, // repulsion_strength
-                            0.3 // repulsion_radius
-                            );
+                            dampingFactor, springConstant, restLength, 0.05, // repulsion_strength
+                            0.5);
                             return prevNodes; // Skip CPU physics if GPU succeeded
                         }
                     }
                     catch (err) {
-                        console.warn('GPU acceleration failed, falling back to CPU physics:', err);
+                        console.warn("GPU acceleration failed, falling back to CPU physics:", err);
                     }
                 }
                 const currentDraggedIndex = draggedNodeIndexRef.current;
@@ -248,7 +252,15 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                 physicsAnimationRef.current = null;
             }
         };
-    }, [enablePhysics, isInitialized, animatedNodes.length, dampingFactor, springConstant, restLength, useGPUAcceleration]);
+    }, [
+        enablePhysics,
+        isInitialized,
+        animatedNodes.length,
+        dampingFactor,
+        springConstant,
+        restLength,
+        useGPUAcceleration,
+    ]);
     // Validate entity limits and show warnings
     useEffect(() => {
         if (!rendererRef.current || !isInitialized)
@@ -264,7 +276,7 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
             }
         }
         catch (err) {
-            console.error('Failed to validate entity limits:', err);
+            console.error("Failed to validate entity limits:", err);
         }
     }, [nodes.length, edges.length, isInitialized]);
     // Update graph data when nodes or edges change
@@ -275,7 +287,7 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                 const nodeData = [];
                 for (const node of animatedNodes) {
                     const canvasPos = normalizedToCanvas(node.x, node.y, canvas.width, canvas.height);
-                    const color = hexToRgba(node.color || '#3498db');
+                    const color = hexToRgba(node.color || "#3498db");
                     const size = node.size || 5;
                     nodeData.push(canvasPos.x, // x position
                     canvasPos.y, // y position
@@ -283,19 +295,18 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                     color.g, // green
                     color.b, // blue
                     color.a, // alpha
-                    size // size/radius
-                    );
+                    size);
                 }
                 // Prepare edge data for GPU
                 const edgeData = [];
-                const nodeMap = new Map(animatedNodes.map(node => [node.id, node]));
+                const nodeMap = new Map(animatedNodes.map((node) => [node.id, node]));
                 for (const edge of edges) {
                     const sourceNode = nodeMap.get(edge.source);
                     const targetNode = nodeMap.get(edge.target);
                     if (sourceNode && targetNode) {
                         const sourcePos = normalizedToCanvas(sourceNode.x, sourceNode.y, canvas.width, canvas.height);
                         const targetPos = normalizedToCanvas(targetNode.x, targetNode.y, canvas.width, canvas.height);
-                        const color = hexToRgba(edge.color || '#95a5a6');
+                        const color = hexToRgba(edge.color || "#95a5a6");
                         const width = edge.width || 1;
                         edgeData.push(sourcePos.x, // x1
                         sourcePos.y, // y1
@@ -305,8 +316,7 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                         color.g, // green
                         color.b, // blue
                         color.a, // alpha
-                        width // width
-                        );
+                        width);
                     }
                 }
                 // Send data to Rust renderer
@@ -314,7 +324,7 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                 rendererRef.current.set_edges(new Float32Array(edgeData));
             }
             catch (err) {
-                console.error('Failed to update graph data:', err);
+                console.error("Failed to update graph data:", err);
             }
         }
     }, [animatedNodes, edges, isInitialized, canvas, isGraphMode]);
@@ -326,19 +336,19 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                 rendererRef.current.set_camera_zoom(cameraRef.current.zoom);
             }
             catch (err) {
-                console.error('Failed to update camera:', err);
+                console.error("Failed to update camera:", err);
             }
         }
     }, [isInitialized]);
     // Keyboard event handlers for shift key
     useEffect(() => {
         const handleKeyDown = (e) => {
-            if (e.key === 'Shift') {
+            if (e.key === "Shift") {
                 setIsShiftPressed(true);
             }
         };
         const handleKeyUp = (e) => {
-            if (e.key === 'Shift') {
+            if (e.key === "Shift") {
                 setIsShiftPressed(false);
             }
         };
@@ -348,13 +358,13 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                 e.stopPropagation();
             }
         };
-        window.addEventListener('keydown', handleKeyDown);
-        window.addEventListener('keyup', handleKeyUp);
-        document.addEventListener('wheel', handleWheel, { passive: false });
+        window.addEventListener("keydown", handleKeyDown);
+        window.addEventListener("keyup", handleKeyUp);
+        document.addEventListener("wheel", handleWheel, { passive: false });
         return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-            window.removeEventListener('keyup', handleKeyUp);
-            document.removeEventListener('wheel', handleWheel);
+            window.removeEventListener("keydown", handleKeyDown);
+            window.removeEventListener("keyup", handleKeyUp);
+            document.removeEventListener("wheel", handleWheel);
         };
     }, [canvasFocused]);
     // Camera control handlers
@@ -386,7 +396,7 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
         if (isDraggingNodeRef.current && draggedNodeIndex !== null) {
             const { worldX, worldY } = screenToWorld(e.clientX, e.clientY);
             // Update the dragged node's position directly
-            setAnimatedNodes(prevNodes => {
+            setAnimatedNodes((prevNodes) => {
                 const updatedNodes = [...prevNodes];
                 if (draggedNodeIndex < updatedNodes.length) {
                     const oldNode = updatedNodes[draggedNodeIndex];
@@ -395,7 +405,7 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                         x: worldX,
                         y: worldY,
                         vx: 0, // Reset velocity to prevent jitter
-                        vy: 0
+                        vy: 0,
                     };
                 }
                 return updatedNodes;
@@ -419,7 +429,7 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                     rendererRef.current.set_camera_position(cameraRef.current.x, cameraRef.current.y);
                 }
                 catch (error) {
-                    console.error('Error updating camera position:', error);
+                    console.error("Error updating camera position:", error);
                 }
             }
             return;
@@ -433,7 +443,14 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
         else {
             setHoveredNodeIndex(null);
         }
-    }, [canvas, isPanMode, isShiftPressed, screenToWorld, getNodeUnderMouse, draggedNodeIndex]);
+    }, [
+        canvas,
+        isPanMode,
+        isShiftPressed,
+        screenToWorld,
+        getNodeUnderMouse,
+        draggedNodeIndex,
+    ]);
     const handleMouseUp = useCallback(() => {
         isDraggingRef.current = false;
         // End node dragging
@@ -453,7 +470,7 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
             rendererRef.current.set_camera_zoom(cameraRef.current.zoom);
         }
         catch (err) {
-            console.error('Failed to update camera zoom:', err);
+            console.error("Failed to update camera zoom:", err);
         }
     }, []);
     const handleZoomOut = useCallback(() => {
@@ -465,7 +482,7 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
             rendererRef.current.set_camera_zoom(cameraRef.current.zoom);
         }
         catch (err) {
-            console.error('Failed to update camera zoom:', err);
+            console.error("Failed to update camera zoom:", err);
         }
     }, []);
     const handleResetCamera = useCallback(() => {
@@ -476,7 +493,7 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
             rendererRef.current.reset_camera();
         }
         catch (err) {
-            console.error('Failed to reset camera:', err);
+            console.error("Failed to reset camera:", err);
         }
     }, []);
     // Touch event handlers for mobile
@@ -488,7 +505,11 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
         }
     }, [isPanMode, isShiftPressed]);
     const handleTouchMove = useCallback((e) => {
-        if (e.touches.length === 1 && isDraggingRef.current && canvas && rendererRef.current && (isPanMode || isShiftPressed)) {
+        if (e.touches.length === 1 &&
+            isDraggingRef.current &&
+            canvas &&
+            rendererRef.current &&
+            (isPanMode || isShiftPressed)) {
             const touch = e.touches[0];
             const deltaX = touch.clientX - lastMousePosRef.current.x;
             const deltaY = touch.clientY - lastMousePosRef.current.y;
@@ -502,7 +523,7 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                 rendererRef.current.set_camera_position(cameraRef.current.x, cameraRef.current.y);
             }
             catch (error) {
-                console.error('Error updating camera position:', error);
+                console.error("Error updating camera position:", error);
             }
         }
     }, [canvas, isPanMode, isShiftPressed]);
@@ -546,7 +567,8 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
         }
         const elapsed = (timestamp - startTimeRef.current) / 1000.0;
         try {
-            if (rendererRef.current && typeof rendererRef.current.render === 'function') {
+            if (rendererRef.current &&
+                typeof rendererRef.current.render === "function") {
                 rendererRef.current.render(elapsed);
                 if (isInitialized && !error) {
                     animationIdRef.current = requestAnimationFrame(animate);
@@ -554,13 +576,16 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
             }
         }
         catch (err) {
-            console.error('Render error:', err);
+            console.error("Render error:", err);
             setError(`Render error: ${err}`);
         }
     }, [isInitialized, error]);
     // Handle canvas resize
     const handleResize = useCallback(() => {
-        if (!canvas || !containerRef.current || !rendererRef.current || !isInitialized)
+        if (!canvas ||
+            !containerRef.current ||
+            !rendererRef.current ||
+            !isInitialized)
             return;
         const rect = containerRef.current.getBoundingClientRect();
         const pixelRatio = Math.min(window.devicePixelRatio || 1, 2); // Cap pixel ratio to prevent excessive memory usage
@@ -583,34 +608,35 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
         canvas.width = targetWidth;
         canvas.height = targetHeight;
         try {
-            if (rendererRef.current && typeof rendererRef.current.resize === 'function') {
+            if (rendererRef.current &&
+                typeof rendererRef.current.resize === "function") {
                 rendererRef.current.resize(canvas.width, canvas.height);
             }
         }
         catch (err) {
-            console.error('Resize error:', err);
+            console.error("Resize error:", err);
         }
     }, [canvas, isInitialized]);
     // Update colors when props change
     useEffect(() => {
         if (rendererRef.current && isInitialized) {
             try {
-                if (typeof rendererRef.current.set_color1_hex === 'function') {
+                if (typeof rendererRef.current.set_color1_hex === "function") {
                     rendererRef.current.set_color1_hex(color1);
                 }
-                if (typeof rendererRef.current.set_color2_hex === 'function') {
+                if (typeof rendererRef.current.set_color2_hex === "function") {
                     rendererRef.current.set_color2_hex(color2);
                 }
             }
             catch (err) {
-                console.error('Color update error:', err);
+                console.error("Color update error:", err);
             }
         }
     }, [color1, color2, isInitialized]);
     // Register component and check if it should be active
     useEffect(() => {
         const isActiveComponent = registerComponent(componentId.current);
-        console.log('Component registration:', componentId.current, 'isActive:', isActiveComponent);
+        console.log("Component registration:", componentId.current, "isActive:", isActiveComponent);
         setIsActive(isActiveComponent);
         return () => {
             unregisterComponent(componentId.current);
@@ -618,18 +644,33 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
     }, []);
     // Initialize renderer when canvas becomes available and component is active
     useEffect(() => {
-        console.log('Init useEffect:', { canvas: !!canvas, isActive, isInitialized, isInitializing, mounted: mountedRef.current });
-        if (!canvas || !isActive || isInitialized || isInitializing || !mountedRef.current) {
+        console.log("Init useEffect:", {
+            canvas: !!canvas,
+            isActive,
+            isInitialized,
+            isInitializing,
+            mounted: mountedRef.current,
+        });
+        if (!canvas ||
+            !isActive ||
+            isInitialized ||
+            isInitializing ||
+            !mountedRef.current) {
             return;
         }
         const init = async () => {
             try {
-                console.log('Starting WebGPU initialization...');
+                console.log("Starting WebGPU initialization...");
                 setIsInitializing(true);
                 // Ensure canvas has proper dimensions
                 const rect = canvas.getBoundingClientRect();
                 const pixelRatio = window.devicePixelRatio || 1;
-                console.log('Canvas dimensions:', { rect, pixelRatio, currentWidth: canvas.width, currentHeight: canvas.height });
+                console.log("Canvas dimensions:", {
+                    rect,
+                    pixelRatio,
+                    currentWidth: canvas.width,
+                    currentHeight: canvas.height,
+                });
                 // Add size limits to prevent WebGPU texture size errors
                 const maxDimension = 2048;
                 const targetWidth = Math.min(Math.floor((rect.width || width) * pixelRatio), maxDimension);
@@ -638,31 +679,31 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                 if (canvas.width === 0 || canvas.height === 0) {
                     canvas.width = targetWidth;
                     canvas.height = targetHeight;
-                    canvas.style.width = (rect.width || width) + 'px';
-                    canvas.style.height = (rect.height || height) + 'px';
-                    console.log('Set canvas dimensions:', canvas.width, 'x', canvas.height, 'with pixel ratio:', pixelRatio);
+                    canvas.style.width = (rect.width || width) + "px";
+                    canvas.style.height = (rect.height || height) + "px";
+                    console.log("Set canvas dimensions:", canvas.width, "x", canvas.height, "with pixel ratio:", pixelRatio);
                 }
                 // Validate final dimensions
                 if (canvas.width === 0 || canvas.height === 0) {
-                    throw new Error('Canvas has invalid dimensions after auto-sizing');
+                    throw new Error("Canvas has invalid dimensions after auto-sizing");
                 }
                 // Get shared WASM module instance
-                console.log('Loading WASM module...');
+                console.log("Loading WASM module...");
                 const wasmModule = await loadWasmModule();
-                console.log('WASM module loaded');
+                console.log("WASM module loaded");
                 let renderer;
                 try {
-                    console.log('Creating renderer...');
+                    console.log("Creating renderer...");
                     renderer = new wasmModule.FastGraphRenderer();
-                    console.log('Renderer created');
+                    console.log("Renderer created");
                 }
                 catch (err) {
                     throw new Error(`Failed to create renderer: ${err}`);
                 }
                 try {
-                    console.log('Initializing WebGPU...');
+                    console.log("Initializing WebGPU...");
                     await renderer.init(canvas);
-                    console.log('WebGPU initialized successfully');
+                    console.log("WebGPU initialized successfully");
                 }
                 catch (err) {
                     throw new Error(`Failed to initialize WebGPU: ${err}`);
@@ -677,18 +718,18 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                     try {
                         renderer.set_color1_hex(initialColorsRef.current.color1);
                         renderer.set_color2_hex(initialColorsRef.current.color2);
-                        console.log('Initial colors set');
+                        console.log("Initial colors set");
                     }
                     catch (err) {
-                        console.warn('Failed to set initial colors:', err);
+                        console.warn("Failed to set initial colors:", err);
                     }
                 }
             }
             catch (err) {
-                console.error('Failed to initialize WebGPU renderer:', err);
-                const errorMessage = err instanceof Error ? err.message : 'Failed to initialize renderer';
+                console.error("Failed to initialize WebGPU renderer:", err);
+                const errorMessage = err instanceof Error ? err.message : "Failed to initialize renderer";
                 setError(`WebGPU initialization failed: ${errorMessage}`);
-                setRetryCount(prev => prev + 1);
+                setRetryCount((prev) => prev + 1);
             }
             finally {
                 if (mountedRef.current) {
@@ -731,7 +772,8 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                 const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
                 const targetWidth = Math.min(Math.floor(width * pixelRatio), 2048);
                 const targetHeight = Math.min(Math.floor(height * pixelRatio), 2048);
-                if (lastSize.width !== targetWidth || lastSize.height !== targetHeight) {
+                if (lastSize.width !== targetWidth ||
+                    lastSize.height !== targetHeight) {
                     debouncedResize();
                 }
             }
@@ -757,7 +799,7 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
                     rendererRef.current = null;
                 }
                 catch (err) {
-                    console.warn('Cleanup error:', err);
+                    console.warn("Cleanup error:", err);
                 }
             }
             setIsInitialized(false);
@@ -767,250 +809,265 @@ export const FastGraph = ({ nodes = [], edges = [], color1 = '#ff0000', color2 =
     const containerStyle = {
         width: width,
         height: height,
-        position: 'relative',
-        minWidth: '100px',
-        minHeight: '100px',
-        maxWidth: '2048px',
-        maxHeight: '2048px',
-        overflow: 'hidden',
+        position: "relative",
+        minWidth: "100px",
+        minHeight: "100px",
+        maxWidth: "2048px",
+        maxHeight: "2048px",
+        overflow: "hidden",
         ...style,
     };
     const canvasStyle = {
-        width: '100%',
-        height: '100%',
-        display: 'block',
-        maxWidth: '100%',
-        maxHeight: '100%',
+        width: "100%",
+        height: "100%",
+        display: "block",
+        maxWidth: "100%",
+        maxHeight: "100%",
     };
     // Always render canvas, but show overlays for different states
     return (React.createElement("div", { ref: containerRef, style: containerStyle },
         React.createElement("canvas", { ref: canvasRef, className: className, style: {
                 ...canvasStyle,
-                cursor: isDraggingNodeRef.current ? 'grabbing' :
-                    (isPanMode || isShiftPressed) ? (isDraggingRef.current ? 'grabbing' : 'grab') :
-                        hoveredNodeIndex !== null ? 'pointer' :
-                            'default',
-                outline: canvasFocused ? '2px solid rgba(0, 150, 255, 0.5)' : 'none',
-                outlineOffset: '2px'
+                cursor: isDraggingNodeRef.current
+                    ? "grabbing"
+                    : isPanMode || isShiftPressed
+                        ? isDraggingRef.current
+                            ? "grabbing"
+                            : "grab"
+                        : hoveredNodeIndex !== null
+                            ? "pointer"
+                            : "default",
+                outline: canvasFocused ? "2px solid rgba(0, 150, 255, 0.5)" : "none",
+                outlineOffset: "2px",
             }, tabIndex: 0, onMouseDown: handleMouseDown, onMouseMove: handleMouseMove, onMouseUp: handleMouseUp, onMouseLeave: handleMouseUp, onTouchStart: handleTouchStart, onTouchMove: handleTouchMove, onTouchEnd: handleTouchEnd, onFocus: () => setCanvasFocused(true), onBlur: () => setCanvasFocused(false) }),
         isGraphMode && isInitialized && !error && (React.createElement("div", { style: {
-                position: 'absolute',
-                top: '10px',
-                right: '10px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '5px',
-                zIndex: 20
+                position: "absolute",
+                top: "10px",
+                right: "10px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "5px",
+                zIndex: 20,
             } },
             React.createElement("button", { onClick: handleZoomIn, style: {
-                    width: '30px',
-                    height: '30px',
-                    border: 'none',
-                    borderRadius: '4px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                    color: '#333',
-                    cursor: 'pointer',
-                    fontSize: '16px',
-                    fontWeight: 'bold',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
+                    width: "30px",
+                    height: "30px",
+                    border: "none",
+                    borderRadius: "4px",
+                    backgroundColor: "rgba(255, 255, 255, 0.9)",
+                    color: "#333",
+                    cursor: "pointer",
+                    fontSize: "16px",
+                    fontWeight: "bold",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                 }, title: "Zoom In" }, "+"),
             React.createElement("button", { onClick: handleZoomOut, style: {
-                    width: '30px',
-                    height: '30px',
-                    border: 'none',
-                    borderRadius: '4px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                    color: '#333',
-                    cursor: 'pointer',
-                    fontSize: '16px',
-                    fontWeight: 'bold',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
+                    width: "30px",
+                    height: "30px",
+                    border: "none",
+                    borderRadius: "4px",
+                    backgroundColor: "rgba(255, 255, 255, 0.9)",
+                    color: "#333",
+                    cursor: "pointer",
+                    fontSize: "16px",
+                    fontWeight: "bold",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                 }, title: "Zoom Out" }, "\u2212"),
             React.createElement("button", { onClick: handleResetCamera, style: {
-                    width: '30px',
-                    height: '30px',
-                    border: 'none',
-                    borderRadius: '4px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                    color: '#333',
-                    fontSize: '16px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+                    width: "30px",
+                    height: "30px",
+                    border: "none",
+                    borderRadius: "4px",
+                    backgroundColor: "rgba(255, 255, 255, 0.9)",
+                    color: "#333",
+                    fontSize: "16px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
                 }, title: "Reset Camera" }, "\uD83C\uDFE0"))),
         isGraphMode && isInitialized && !error && (React.createElement("div", { style: {
-                position: 'absolute',
-                bottom: '10px',
-                right: '10px',
-                display: 'flex',
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: '8px',
-                zIndex: 20
+                position: "absolute",
+                bottom: "10px",
+                right: "10px",
+                display: "flex",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: "8px",
+                zIndex: 20,
             } },
             React.createElement("button", { onClick: () => setIsPanMode(!isPanMode), style: {
-                    padding: '8px 12px',
-                    border: 'none',
-                    borderRadius: '6px',
-                    backgroundColor: (isPanMode || isShiftPressed) ? 'rgba(0, 150, 255, 0.9)' : 'rgba(255, 255, 255, 0.9)',
-                    color: (isPanMode || isShiftPressed) ? 'white' : '#333',
-                    fontSize: '12px',
-                    fontWeight: '500',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-                    transition: 'all 0.2s ease',
-                    outline: isShiftPressed ? '2px solid rgba(255, 193, 7, 0.8)' : 'none'
-                }, title: isShiftPressed ? "Pan Mode: SHIFT HELD (Click to toggle manual mode)" :
-                    isPanMode ? "Pan Mode: ON (Click to disable)" :
-                        "Pan Mode: OFF (Click to enable)" }, "\uD83D\uDDB1\uFE0F PAN"))),
+                    padding: "8px 12px",
+                    border: "none",
+                    borderRadius: "6px",
+                    backgroundColor: isPanMode || isShiftPressed
+                        ? "rgba(0, 150, 255, 0.9)"
+                        : "rgba(255, 255, 255, 0.9)",
+                    color: isPanMode || isShiftPressed ? "white" : "#333",
+                    fontSize: "12px",
+                    fontWeight: "500",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+                    transition: "all 0.2s ease",
+                    outline: isShiftPressed
+                        ? "2px solid rgba(255, 193, 7, 0.8)"
+                        : "none",
+                }, title: isShiftPressed
+                    ? "Pan Mode: SHIFT HELD (Click to toggle manual mode)"
+                    : isPanMode
+                        ? "Pan Mode: ON (Click to disable)"
+                        : "Pan Mode: OFF (Click to enable)" }, "\uD83D\uDDB1\uFE0F PAN"))),
         isGraphMode && isInitialized && !error && (React.createElement("div", { style: {
-                position: 'absolute',
-                top: '10px',
-                left: '10px',
-                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                color: 'white',
-                padding: '12px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontFamily: 'monospace',
-                lineHeight: '1.4',
-                maxWidth: '200px',
+                position: "absolute",
+                top: "10px",
+                left: "10px",
+                backgroundColor: "rgba(0, 0, 0, 0.8)",
+                color: "white",
+                padding: "12px",
+                borderRadius: "6px",
+                fontSize: "12px",
+                fontFamily: "monospace",
+                lineHeight: "1.4",
+                maxWidth: "200px",
                 zIndex: 20,
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
-                pointerEvents: 'none'
+                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
+                pointerEvents: "none",
             } },
-            React.createElement("div", { style: { fontWeight: 'bold', marginBottom: '8px', color: '#4CAF50' } }, "\uD83C\uDFAE Pan Controls"),
-            React.createElement("div", { style: { marginBottom: '4px' } },
-                React.createElement("span", { style: { color: '#FFC107' } }, "Hold Shift"),
+            React.createElement("div", { style: {
+                    fontWeight: "bold",
+                    marginBottom: "8px",
+                    color: "#4CAF50",
+                } }, "\uD83C\uDFAE Pan Controls"),
+            React.createElement("div", { style: { marginBottom: "4px" } },
+                React.createElement("span", { style: { color: "#FFC107" } }, "Hold Shift"),
                 " to enable panning"),
-            React.createElement("div", { style: { marginBottom: '4px' } },
-                React.createElement("span", { style: { color: '#2196F3' } }, "PAN button"),
+            React.createElement("div", { style: { marginBottom: "4px" } },
+                React.createElement("span", { style: { color: "#2196F3" } }, "PAN button"),
                 " toggles manual mode"),
-            React.createElement("div", { style: { marginBottom: '4px' } },
-                React.createElement("span", { style: { color: '#4CAF50' } }, "Drag nodes"),
+            React.createElement("div", { style: { marginBottom: "4px" } },
+                React.createElement("span", { style: { color: "#4CAF50" } }, "Drag nodes"),
                 " when not panning"),
-            React.createElement("div", { style: { marginBottom: '4px' } },
-                React.createElement("span", { style: { color: '#FF9800' } }, "Focus canvas"),
+            React.createElement("div", { style: { marginBottom: "4px" } },
+                React.createElement("span", { style: { color: "#FF9800" } }, "Focus canvas"),
                 " = no page scroll"),
-            React.createElement("div", { style: { color: '#9E9E9E', fontSize: '10px', marginTop: '6px' } }, "Click canvas to focus"))),
+            React.createElement("div", { style: { color: "#9E9E9E", fontSize: "10px", marginTop: "6px" } }, "Click canvas to focus"))),
         !isActive && (React.createElement("div", { style: {
-                position: 'absolute',
+                position: "absolute",
                 top: 0,
                 left: 0,
                 right: 0,
                 bottom: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'rgba(248, 249, 250, 0.95)',
-                color: '#6c757d',
-                fontSize: '14px',
-                border: '2px dashed #dee2e6',
-                borderRadius: '8px',
-                zIndex: 10
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(248, 249, 250, 0.95)",
+                color: "#6c757d",
+                fontSize: "14px",
+                border: "2px dashed #dee2e6",
+                borderRadius: "8px",
+                zIndex: 10,
             } },
-            React.createElement("div", { style: { textAlign: 'center' } },
-                React.createElement("div", { style: { marginBottom: '8px', fontWeight: 'bold' } }, "\u26A0\uFE0F WebGPU Limit"),
-                React.createElement("div", { style: { fontSize: '12px' } },
+            React.createElement("div", { style: { textAlign: "center" } },
+                React.createElement("div", { style: { marginBottom: "8px", fontWeight: "bold" } }, "\u26A0\uFE0F WebGPU Limit"),
+                React.createElement("div", { style: { fontSize: "12px" } },
                     "Only one FastGraph component can be active at a time.",
                     React.createElement("br", null),
                     "Another component is currently using WebGPU.")))),
         isGraphMode && isInitialized && !error && nodes.length === 0 && (React.createElement("div", { style: {
-                position: 'absolute',
+                position: "absolute",
                 top: 0,
                 left: 0,
                 right: 0,
                 bottom: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'rgba(248, 248, 248, 0.95)',
-                color: '#888',
-                fontSize: '14px',
-                border: '1px solid #ddd',
-                borderRadius: '8px',
-                zIndex: 10
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(248, 248, 248, 0.95)",
+                color: "#888",
+                fontSize: "14px",
+                border: "1px solid #ddd",
+                borderRadius: "8px",
+                zIndex: 10,
             } }, "No nodes to display")),
         error && (React.createElement("div", { style: {
-                position: 'absolute',
+                position: "absolute",
                 top: 0,
                 left: 0,
                 right: 0,
                 bottom: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'rgba(240, 240, 240, 0.95)',
-                color: '#666',
-                fontSize: '14px',
-                border: '1px solid #ddd',
-                borderRadius: '8px',
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(240, 240, 240, 0.95)",
+                color: "#666",
+                fontSize: "14px",
+                border: "1px solid #ddd",
+                borderRadius: "8px",
                 zIndex: 10,
-                flexDirection: 'column'
+                flexDirection: "column",
             } },
-            React.createElement("div", { style: { marginBottom: '10px' } },
+            React.createElement("div", { style: { marginBottom: "10px" } },
                 React.createElement("strong", null, "Error:"),
                 " ",
                 error),
             React.createElement("button", { onClick: handleRetry, style: {
-                    padding: '8px 16px',
-                    backgroundColor: '#007bff',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '12px'
+                    padding: "8px 16px",
+                    backgroundColor: "#007bff",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "12px",
                 } },
                 "Retry ",
                 retryCount > 1 && `(Attempt ${retryCount})`),
-            retryCount > 2 && (React.createElement("div", { style: { marginTop: '8px', fontSize: '12px', color: '#666' } }, "Your browser may not support WebGPU or it's disabled.")))),
+            retryCount > 2 && (React.createElement("div", { style: { marginTop: "8px", fontSize: "12px", color: "#666" } }, "Your browser may not support WebGPU or it's disabled.")))),
         isInitializing && !error && (React.createElement("div", { style: {
-                position: 'absolute',
+                position: "absolute",
                 top: 0,
                 left: 0,
                 right: 0,
                 bottom: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'rgba(248, 248, 248, 0.95)',
-                color: '#888',
-                fontSize: '14px',
-                border: '1px solid #ddd',
-                borderRadius: '8px',
-                zIndex: 10
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(248, 248, 248, 0.95)",
+                color: "#888",
+                fontSize: "14px",
+                border: "1px solid #ddd",
+                borderRadius: "8px",
+                zIndex: 10,
             } },
             "Initializing WebGPU...",
-            isGraphMode && React.createElement("div", { style: { fontSize: '12px', marginTop: '4px' } },
+            isGraphMode && (React.createElement("div", { style: { fontSize: "12px", marginTop: "4px" } },
                 "Preparing to render ",
                 nodes.length,
                 " nodes and ",
                 edges.length,
-                " edges"))),
+                " edges")))),
         isInitialized && !error && (React.createElement("div", { style: {
-                position: 'absolute',
-                bottom: '8px',
-                left: '8px',
-                padding: '4px 8px',
-                backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                color: '#fff',
-                fontSize: '12px',
-                fontFamily: 'monospace',
-                borderRadius: '4px',
+                position: "absolute",
+                bottom: "8px",
+                left: "8px",
+                padding: "4px 8px",
+                backgroundColor: "rgba(0, 0, 0, 0.7)",
+                color: "#fff",
+                fontSize: "12px",
+                fontFamily: "monospace",
+                borderRadius: "4px",
                 zIndex: 5,
-                userSelect: 'none',
-                pointerEvents: 'none'
+                userSelect: "none",
+                pointerEvents: "none",
             } },
             fps,
             " FPS"))));

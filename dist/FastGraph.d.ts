@@ -1,5 +1,5 @@
-import React from 'react';
-import { GraphNode, GraphEdge } from './types';
+import React from "react";
+import { GraphNode, GraphEdge } from "./types";
 export interface FastGraphProps {
     /** Array of graph nodes to render */
     nodes?: GraphNode[];

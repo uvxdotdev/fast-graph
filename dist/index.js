@@ -434,9 +434,7 @@ var loadWasmModule = async () => {
       try {
         module2 = await import("./pkg/fast_graph_core.js");
       } catch (relativeError) {
-        try {
-          module2 = await import("@uvxdotdev/fastgraph/dist/pkg/fast_graph_core.js");
-        } catch (packageError) {
+        try {} catch (packageError) {
           try {
             const currentScript = document.currentScript;
             const baseUrl = currentScript?.src || window.location.href;
@@ -601,7 +599,7 @@ var FastGraph = ({
         if (useGPUAcceleration && rendererRef.current && typeof rendererRef.current.integrate_physics === "function") {
           try {
             if (draggedNodeIndexRef.current !== null && draggedNodeIndexRef.current !== undefined) {} else {
-              rendererRef.current.integrate_physics(deltaTime * 0.01, dampingFactor, springConstant, restLength, 0.001, 0.3);
+              rendererRef.current.integrate_physics(deltaTime * 0.01, dampingFactor, springConstant, restLength, 0.05, 0.5);
               return prevNodes;
             }
           } catch (err) {
@@ -620,7 +618,15 @@ var FastGraph = ({
         physicsAnimationRef.current = null;
       }
     };
-  }, [enablePhysics, isInitialized, animatedNodes.length, dampingFactor, springConstant, restLength, useGPUAcceleration]);
+  }, [
+    enablePhysics,
+    isInitialized,
+    animatedNodes.length,
+    dampingFactor,
+    springConstant,
+    restLength,
+    useGPUAcceleration
+  ]);
   import_react.useEffect(() => {
     if (!rendererRef.current || !isInitialized)
       return;
@@ -768,7 +774,14 @@ var FastGraph = ({
     } else {
       setHoveredNodeIndex(null);
     }
-  }, [canvas, isPanMode, isShiftPressed, screenToWorld, getNodeUnderMouse, draggedNodeIndex]);
+  }, [
+    canvas,
+    isPanMode,
+    isShiftPressed,
+    screenToWorld,
+    getNodeUnderMouse,
+    draggedNodeIndex
+  ]);
   const handleMouseUp = import_react.useCallback(() => {
     isDraggingRef.current = false;
     if (isDraggingNodeRef.current) {
@@ -931,7 +944,13 @@ var FastGraph = ({
     };
   }, []);
   import_react.useEffect(() => {
-    console.log("Init useEffect:", { canvas: !!canvas, isActive, isInitialized, isInitializing, mounted: mountedRef.current });
+    console.log("Init useEffect:", {
+      canvas: !!canvas,
+      isActive,
+      isInitialized,
+      isInitializing,
+      mounted: mountedRef.current
+    });
     if (!canvas || !isActive || isInitialized || isInitializing || !mountedRef.current) {
       return;
     }
@@ -941,7 +960,12 @@ var FastGraph = ({
         setIsInitializing(true);
         const rect = canvas.getBoundingClientRect();
         const pixelRatio = window.devicePixelRatio || 1;
-        console.log("Canvas dimensions:", { rect, pixelRatio, currentWidth: canvas.width, currentHeight: canvas.height });
+        console.log("Canvas dimensions:", {
+          rect,
+          pixelRatio,
+          currentWidth: canvas.width,
+          currentHeight: canvas.height
+        });
         const maxDimension = 2048;
         const targetWidth = Math.min(Math.floor((rect.width || width) * pixelRatio), maxDimension);
         const targetHeight = Math.min(Math.floor((rect.height || height) * pixelRatio), maxDimension);
@@ -1210,7 +1234,11 @@ var FastGraph = ({
       pointerEvents: "none"
     }
   }, /* @__PURE__ */ import_react.default.createElement("div", {
-    style: { fontWeight: "bold", marginBottom: "8px", color: "#4CAF50" }
+    style: {
+      fontWeight: "bold",
+      marginBottom: "8px",
+      color: "#4CAF50"
+    }
   }, "\uD83C\uDFAE Pan Controls"), /* @__PURE__ */ import_react.default.createElement("div", {
     style: { marginBottom: "4px" }
   }, /* @__PURE__ */ import_react.default.createElement("span", {

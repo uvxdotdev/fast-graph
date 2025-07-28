@@ -235,6 +235,12 @@
                         >
                             Massive (2500)
                         </button>
+                        <button
+                            class="preset-btn"
+                            onclick="generatePreset('ultra')"
+                        >
+                            Ultra (30k)
+                        </button>
                     </div>
 
                     <div class="input-group">
@@ -324,6 +330,9 @@
                     <span class="key">5</span>Massive Graph (2500)
                 </div>
                 <div class="shortcut">
+                    <span class="key">6</span>Ultra Graph (30k)
+                </div>
+                <div class="shortcut">
                     <span class="key">G</span>Generate Custom
                 </div>
                 <div class="shortcut">
@@ -406,26 +415,29 @@
                             const nodeCount =
                                 parseInt(nodeCountInput.value) || 8;
 
-                            // Clamp between 1 and 5000
+                            // Clamp between 1 and 30000
                             const clampedCount = Math.max(
                                 1,
-                                Math.min(5000, nodeCount),
+                                Math.min(30000, nodeCount),
                             );
                             nodeCountInput.value = clampedCount;
 
-                            // Adjust connection density based on graph size
-                            let connectionDensity;
-                            if (clampedCount <= 20) connectionDensity = 0.6;
-                            else if (clampedCount <= 100)
-                                connectionDensity = 0.3;
-                            else if (clampedCount <= 500)
-                                connectionDensity = 0.1;
-                            else connectionDensity = 0.05;
+                            let newGraph;
+                            if (clampedCount > 1000) {
+                                // Use the even distribution method for large graphs
+                                const targetEdges = Math.min(clampedCount * 2, 100000);
+                                newGraph = window.generateUltraGraph(clampedCount, targetEdges);
+                            } else {
+                                // Use traditional random generation for smaller graphs
+                                let connectionDensity;
+                                if (clampedCount <= 20) connectionDensity = 0.6;
+                                else if (clampedCount <= 100) connectionDensity = 0.3;
+                                else if (clampedCount <= 500) connectionDensity = 0.1;
+                                else connectionDensity = 0.05;
 
-                            const newGraph = generateRandomGraph(
-                                clampedCount,
-                                connectionDensity,
-                            );
+                                newGraph = generateRandomGraph(clampedCount, connectionDensity);
+                            }
+
                             setGraphData({
                                 nodes: newGraph.nodes.map((node) =>
                                     addRandomVelocity(node, 0.01, 0.03),
@@ -434,7 +446,266 @@
                             });
                             setPhysicsActive(true);
                             physicsEnabled = true;
-                            statusDiv.textContent = `🎯 Generated ${clampedCount} nodes with ${newGraph.edges.length} connections (density: ${(connectionDensity * 100).toFixed(1)}%)`;
+                            
+                            if (clampedCount > 1000) {
+                                statusDiv.textContent = `🎯 Generated ${clampedCount} nodes with ${newGraph.edges.length} connections (colorful mini-clusters)`;
+                            } else {
+                                const density = clampedCount <= 500 ? 
+                                    (clampedCount <= 100 ? (clampedCount <= 20 ? 0.6 : 0.3) : 0.1) : 0.05;
+                                statusDiv.textContent = `🎯 Generated ${clampedCount} nodes with ${newGraph.edges.length} connections (density: ${(density * 100).toFixed(1)}%)`;
+                            }
+                        };
+
+                        // Custom graph generator for evenly distributed mini-clusters
+                        window.generateUltraGraph = (nodeCount, targetEdges) => {
+                            const nodes = [];
+                            const edges = [];
+                            
+                            // Color palette for different cluster types
+                            const clusterColors = [
+                                "#e74c3c", "#3498db", "#2ecc71", "#f39c12", "#9b59b6",
+                                "#1abc9c", "#e67e22", "#34495e", "#ff6b6b", "#4ecdc4",
+                                "#45b7d1", "#96ceb4", "#ffeaa7", "#dda0dd", "#98d8c8",
+                                "#fd79a8", "#fdcb6e", "#6c5ce7", "#a29bfe", "#fd79a8"
+                            ];
+                            
+                            // Calculate grid dimensions for even distribution
+                            const estimatedClusters = Math.floor(nodeCount / 7); // Average 7 nodes per cluster
+                            const gridSize = Math.ceil(Math.sqrt(estimatedClusters));
+                            const cellWidth = 4 / gridSize; // Map spans -2 to 2 (width 4)
+                            const cellHeight = 4 / gridSize; // Map spans -2 to 2 (height 4)
+                            
+                            let nodeIndex = 0;
+                            let clusterIndex = 0;
+
+                            // Create evenly distributed clusters
+                            while (nodeIndex < nodeCount - 2) {
+                                const remainingNodes = nodeCount - nodeIndex;
+                                
+                                // Calculate grid position for this cluster
+                                const gridX = clusterIndex % gridSize;
+                                const gridY = Math.floor(clusterIndex / gridSize);
+                                
+                                // Calculate center of this grid cell
+                                const centerX = -2 + (gridX + 0.5) * cellWidth;
+                                const centerY = -2 + (gridY + 0.5) * cellHeight;
+                                
+                                // Random offset within cell to avoid perfect grid
+                                const offsetX = (Math.random() - 0.5) * cellWidth * 0.6;
+                                const offsetY = (Math.random() - 0.5) * cellHeight * 0.6;
+                                
+                                const clusterCenterX = centerX + offsetX;
+                                const clusterCenterY = centerY + offsetY;
+                                
+                                // Choose pattern type and cluster color
+                                const patternType = Math.floor(Math.random() * 6);
+                                const clusterColor = clusterColors[clusterIndex % clusterColors.length];
+                                let clusterSize = 0;
+                                
+                                if (patternType === 0 && remainingNodes >= 8) {
+                                    // Linear chain (5-12 nodes)
+                                    clusterSize = Math.min(5 + Math.floor(Math.random() * 8), remainingNodes);
+                                    
+                                    // Position nodes in a line around cluster center
+                                    const angle = Math.random() * Math.PI * 2;
+                                    const spacing = 0.03;
+                                    
+                                    for (let i = 0; i < clusterSize; i++) {
+                                        const offset = (i - clusterSize/2) * spacing;
+                                        nodes.push({
+                                            id: nodeIndex + i,
+                                            x: clusterCenterX + Math.cos(angle) * offset,
+                                            y: clusterCenterY + Math.sin(angle) * offset,
+                                            vx: 0,
+                                            vy: 0,
+                                            color: clusterColor
+                                        });
+                                    }
+                                    
+                                    // Connect in chain
+                                    for (let i = 0; i < clusterSize - 1; i++) {
+                                        edges.push({ source: nodeIndex + i, target: nodeIndex + i + 1 });
+                                    }
+                                    
+                                } else if (patternType === 1 && remainingNodes >= 6) {
+                                    // Star pattern (4-8 spokes)
+                                    const spokeCount = Math.min(3 + Math.floor(Math.random() * 6), remainingNodes - 1);
+                                    clusterSize = spokeCount + 1;
+                                    
+                                    // Center node
+                                    nodes.push({
+                                        id: nodeIndex,
+                                        x: clusterCenterX,
+                                        y: clusterCenterY,
+                                        vx: 0,
+                                        vy: 0,
+                                        color: clusterColor
+                                    });
+                                    
+                                    // Spoke nodes in circle
+                                    const radius = 0.04;
+                                    for (let i = 0; i < spokeCount; i++) {
+                                        const angle = (i / spokeCount) * Math.PI * 2;
+                                        nodes.push({
+                                            id: nodeIndex + 1 + i,
+                                            x: clusterCenterX + Math.cos(angle) * radius,
+                                            y: clusterCenterY + Math.sin(angle) * radius,
+                                            vx: 0,
+                                            vy: 0,
+                                            color: clusterColor
+                                        });
+                                        edges.push({ source: nodeIndex, target: nodeIndex + 1 + i });
+                                    }
+                                    
+                                } else if (patternType === 2 && remainingNodes >= 4) {
+                                    // Dense cluster (4-8 nodes, fully connected)
+                                    clusterSize = Math.min(4 + Math.floor(Math.random() * 5), remainingNodes);
+                                    
+                                    // Position nodes in tight circle
+                                    const radius = 0.025;
+                                    for (let i = 0; i < clusterSize; i++) {
+                                        const angle = (i / clusterSize) * Math.PI * 2;
+                                        nodes.push({
+                                            id: nodeIndex + i,
+                                            x: clusterCenterX + Math.cos(angle) * radius,
+                                            y: clusterCenterY + Math.sin(angle) * radius,
+                                            vx: 0,
+                                            vy: 0,
+                                            color: clusterColor
+                                        });
+                                    }
+                                    
+                                    // Fully connect all nodes
+                                    for (let i = 0; i < clusterSize; i++) {
+                                        for (let j = i + 1; j < clusterSize; j++) {
+                                            edges.push({ source: nodeIndex + i, target: nodeIndex + j });
+                                        }
+                                    }
+                                    
+                                } else if (patternType === 3 && remainingNodes >= 3) {
+                                    // Triangle
+                                    clusterSize = 3;
+                                    const radius = 0.03;
+                                    
+                                    for (let i = 0; i < 3; i++) {
+                                        const angle = (i / 3) * Math.PI * 2;
+                                        nodes.push({
+                                            id: nodeIndex + i,
+                                            x: clusterCenterX + Math.cos(angle) * radius,
+                                            y: clusterCenterY + Math.sin(angle) * radius,
+                                            vx: 0,
+                                            vy: 0,
+                                            color: clusterColor
+                                        });
+                                    }
+                                    
+                                    edges.push({ source: nodeIndex, target: nodeIndex + 1 });
+                                    edges.push({ source: nodeIndex + 1, target: nodeIndex + 2 });
+                                    edges.push({ source: nodeIndex + 2, target: nodeIndex });
+                                    
+                                } else if (patternType === 4 && remainingNodes >= 4) {
+                                    // Square/cycle (4-6 nodes)
+                                    clusterSize = Math.min(4 + Math.floor(Math.random() * 3), remainingNodes);
+                                    const radius = 0.035;
+                                    
+                                    for (let i = 0; i < clusterSize; i++) {
+                                        const angle = (i / clusterSize) * Math.PI * 2;
+                                        nodes.push({
+                                            id: nodeIndex + i,
+                                            x: clusterCenterX + Math.cos(angle) * radius,
+                                            y: clusterCenterY + Math.sin(angle) * radius,
+                                            vx: 0,
+                                            vy: 0,
+                                            color: clusterColor
+                                        });
+                                    }
+                                    
+                                    for (let i = 0; i < clusterSize; i++) {
+                                        const next = (i + 1) % clusterSize;
+                                        edges.push({ source: nodeIndex + i, target: nodeIndex + next });
+                                    }
+                                    
+                                } else {
+                                    // Tree structure (3-8 nodes)
+                                    clusterSize = Math.min(3 + Math.floor(Math.random() * 6), remainingNodes);
+                                    
+                                    // Root node at center
+                                    nodes.push({
+                                        id: nodeIndex,
+                                        x: clusterCenterX,
+                                        y: clusterCenterY,
+                                        vx: 0,
+                                        vy: 0,
+                                        color: clusterColor
+                                    });
+                                    
+                                    // Branch nodes
+                                    const branches = Math.min(2, clusterSize - 1);
+                                    const branchAngle = Math.PI * 2 / branches;
+                                    
+                                    for (let i = 0; i < branches && nodeIndex + 1 + i < nodeCount; i++) {
+                                        const angle = i * branchAngle;
+                                        const branchX = clusterCenterX + Math.cos(angle) * 0.03;
+                                        const branchY = clusterCenterY + Math.sin(angle) * 0.03;
+                                        
+                                        nodes.push({
+                                            id: nodeIndex + 1 + i,
+                                            x: branchX,
+                                            y: branchY,
+                                            vx: 0,
+                                            vy: 0,
+                                            color: clusterColor
+                                        });
+                                        edges.push({ source: nodeIndex, target: nodeIndex + 1 + i });
+                                        
+                                        // Add leaves to branches
+                                        const leaves = Math.min(2, clusterSize - branches - 1);
+                                        for (let j = 0; j < leaves && nodeIndex + 1 + branches + i * leaves + j < nodeCount; j++) {
+                                            const leafAngle = angle + (j - leaves/2) * 0.5;
+                                            const leafX = branchX + Math.cos(leafAngle) * 0.02;
+                                            const leafY = branchY + Math.sin(leafAngle) * 0.02;
+                                            
+                                            nodes.push({
+                                                id: nodeIndex + 1 + branches + i * leaves + j,
+                                                x: leafX,
+                                                y: leafY,
+                                                vx: 0,
+                                                vy: 0,
+                                                color: clusterColor
+                                            });
+                                            edges.push({ source: nodeIndex + 1 + i, target: nodeIndex + 1 + branches + i * leaves + j });
+                                        }
+                                    }
+                                    
+                                    if (clusterSize < 3) clusterSize = 3; // Minimum for tree
+                                }
+                                
+                                nodeIndex += clusterSize;
+                                clusterIndex++;
+                            }
+                            
+                            // Handle any remaining nodes as isolated singles
+                            while (nodeIndex < nodeCount) {
+                                const gridX = clusterIndex % gridSize;
+                                const gridY = Math.floor(clusterIndex / gridSize);
+                                const centerX = -2 + (gridX + 0.5) * cellWidth;
+                                const centerY = -2 + (gridY + 0.5) * cellHeight;
+                                const offsetX = (Math.random() - 0.5) * cellWidth * 0.6;
+                                const offsetY = (Math.random() - 0.5) * cellHeight * 0.6;
+                                
+                                nodes.push({
+                                    id: nodeIndex,
+                                    x: centerX + offsetX,
+                                    y: centerY + offsetY,
+                                    vx: 0,
+                                    vy: 0,
+                                    color: clusterColors[clusterIndex % clusterColors.length]
+                                });
+                                nodeIndex++;
+                                clusterIndex++;
+                            }
+
+                            return { nodes, edges };
                         };
 
                         window.generatePreset = (preset) => {
@@ -464,16 +735,28 @@
                                     density: 0.02,
                                     velocity: 0.002,
                                 },
+                                ultra: {
+                                    count: 30000,
+                                    density: 0.01,
+                                    velocity: 0.001,
+                                },
                             };
 
                             const config = presets[preset];
                             document.getElementById("nodeCount").value =
                                 config.count;
 
-                            const newGraph = generateRandomGraph(
-                                config.count,
-                                config.density,
-                            );
+                            let newGraph;
+                            if (preset === 'ultra') {
+                                // Use custom generation for ultra preset
+                                newGraph = window.generateUltraGraph(config.count, 100000);
+                            } else {
+                                newGraph = generateRandomGraph(
+                                    config.count,
+                                    config.density,
+                                );
+                            }
+
                             setGraphData({
                                 nodes: newGraph.nodes.map((node) =>
                                     addRandomVelocity(
@@ -486,7 +769,12 @@
                             });
                             setPhysicsActive(true);
                             physicsEnabled = true;
-                            statusDiv.textContent = `🎯 ${preset.toUpperCase()} preset: ${config.count} nodes, ${newGraph.edges.length} connections (${(config.density * 100).toFixed(1)}% density)`;
+
+                            if (preset === 'ultra') {
+                                statusDiv.textContent = `🎯 ${preset.toUpperCase()} preset: ${config.count} nodes, ${newGraph.edges.length} connections (diverse patterns: chains, stars, clusters)`;
+                            } else {
+                                statusDiv.textContent = `🎯 ${preset.toUpperCase()} preset: ${config.count} nodes, ${newGraph.edges.length} connections (${(config.density * 100).toFixed(1)}% density)`;
+                            }
                         };
 
                         window.updatePhysicsParams = () => {
@@ -547,6 +835,10 @@
                                 case "5":
                                     e.preventDefault();
                                     window.generatePreset("massive");
+                                    break;
+                                case "6":
+                                    e.preventDefault();
+                                    window.generatePreset("ultra");
                                     break;
                                 case "g":
                                     e.preventDefault();
